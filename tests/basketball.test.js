@@ -93,3 +93,130 @@ test('simulation maintains finite positions and legal ball state', () => {
   assert.ok(game.possession === 0 || game.possession === 1);
   assert.equal(game.snapshot().players.length, 10);
 });
+
+
+test('ordinary defensive fouls retain possession and reset a short shot clock to fourteen seconds', () => {
+  const events = [];
+  const game = new BasketballMatch((type, data) => events.push({type, data}));
+  game.shotClock = 7;
+  assert.equal(game.callFoul(5, 0), true);
+  assert.deepEqual(game.teamFouls,[0,1]);
+  assert.equal(game.playerFouls[5],1);
+  assert.equal(game.possession,0);
+  assert.equal(game.shotClock,14);
+  assert.equal(game.freeThrows,null);
+  assert.equal(events.find(e=>e.type==='foul').data.bonus,false);
+});
+
+test('fifth team foul in a quarter awards two free throws', () => {
+  const game = new BasketballMatch(()=>{},()=>0);
+  for(let i=0;i<4;i++) {
+    game.callFoul(5,0);
+    assert.equal(game.freeThrows,null);
+  }
+  game.callFoul(5,0);
+  assert.equal(game.teamFouls[1],5);
+  assert.equal(game.playerFouls[5],5);
+  assert.equal(game.freeThrows.total,2);
+  assert.equal(game.freeThrows.shooter,0);
+  assert.equal(game.owner,null);
+});
+
+test('free throws freeze the game clock and each successful attempt scores one point', () => {
+  const events=[];
+  const game = new BasketballMatch((type,data)=>events.push({type,data}),()=>0);
+  game.beginFreeThrows(0,2);
+  const clock=game.clock;
+  const shotClock=game.shotClock;
+  for(let i=0;i<40;i++) game.update(.15);
+  assert.equal(game.clock,clock);
+  assert.equal(game.shotClock,shotClock);
+  assert.equal(game.ftAttempts[0],1);
+  game.updateFreeThrows(7);
+  assert.equal(game.ftMakes[0],1);
+  assert.deepEqual(game.score,[1,0]);
+  assert.equal(game.freeThrows.remaining,1);
+  game.updateFreeThrows(5);
+  game.updateFreeThrows(7);
+  assert.equal(game.ftAttempts[0],2);
+  assert.equal(game.ftMakes[0],2);
+  assert.deepEqual(game.score,[2,0]);
+  assert.equal(game.freeThrows,null);
+  assert.equal(game.nextTeam,1);
+  assert.ok(events.some(e=>e.type==='freeThrowStart'));
+  assert.equal(events.filter(e=>e.type==='freeThrowMade').length,2);
+  for(let i=0;i<16;i++) game.update(.15);
+  assert.equal(game.possession,1);
+});
+
+test('missed two-point shooting foul gives two free throws and a last-shot rebound', () => {
+  const sequence=[.01,.99,.0,.99,.5];
+  const game = new BasketballMatch(()=>{},()=>sequence.shift() ?? .5);
+  const shooter=game.owner;
+  shooter.x=game.direction(0)*(COURT.basketX-4);
+  shooter.z=0;
+  game.players[5].x=shooter.x+.3;
+  game.players[5].z=0;
+  game.shoot();
+  assert.equal(game.flight.points,2);
+  assert.equal(game.flight.shootingFoul,true);
+  assert.deepEqual(game.teamFouls,[0,1]);
+  game.updateFlight(game.flight.duration);
+  assert.deepEqual(game.score,[0,0]);
+  assert.equal(game.freeThrows.total,2);
+  game.updateFreeThrows(5);game.updateFreeThrows(7);
+  game.updateFreeThrows(5);game.updateFreeThrows(7);
+  assert.equal(game.ftAttempts[0],2);
+  assert.equal(game.ftMakes[0],1);
+  assert.deepEqual(game.score,[1,0]);
+  assert.equal(game.freeThrows,null);
+  assert.equal(game.rebounds[1],1);
+  assert.equal(game.possession,1);
+});
+
+test('missed three-point shooting foul awards three free throws', () => {
+  const sequence=[.01,.99,.3,.3,.3];
+  const game = new BasketballMatch(()=>{},()=>sequence.shift() ?? .5);
+  const shooter=game.owner;
+  shooter.x=game.direction(0)*(COURT.basketX-7.3);
+  shooter.z=0;
+  game.players[5].x=shooter.x+.2;
+  game.players[5].z=0;
+  game.shoot();
+  assert.equal(game.flight.points,3);
+  game.updateFlight(game.flight.duration);
+  assert.equal(game.freeThrows.total,3);
+  for(let i=0;i<3;i++){game.updateFreeThrows(5);game.updateFreeThrows(7);}
+  assert.deepEqual(game.score,[3,0]);
+  assert.equal(game.ftAttempts[0],3);
+  assert.equal(game.ftMakes[0],3);
+  assert.equal(game.makes[0],0);
+});
+
+test('made field goal through a shooting foul adds one and-one free throw', () => {
+  const game = new BasketballMatch(()=>{},()=>0);
+  const shooter=game.owner;
+  shooter.x=game.direction(0)*(COURT.basketX-3);
+  game.players[5].x=shooter.x+.3;
+  game.players[5].z=shooter.z;
+  game.shoot();
+  assert.equal(game.flight.shootingFoul,true);
+  game.updateFlight(game.flight.duration);
+  assert.deepEqual(game.score,[2,0]);
+  assert.equal(game.freeThrows.total,1);
+  game.updateFreeThrows(5);game.updateFreeThrows(7);
+  assert.deepEqual(game.score,[3,0]);
+  assert.equal(game.ftMakes[0],1);
+  assert.equal(game.makes[0],1);
+});
+
+test('team fouls reset each quarter while player foul totals persist', () => {
+  const game = new BasketballMatch();
+  game.callFoul(5,0);
+  game.clock=.01;
+  game.update(.02);
+  assert.equal(game.quarter,2);
+  assert.deepEqual(game.teamFouls,[0,0]);
+  assert.equal(game.playerFouls[5],1);
+  assert.equal(game.freeThrows,null);
+});
