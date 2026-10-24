@@ -1,3 +1,5 @@
+import { updateMovement, resetIntent, chooseReceiver } from './tactics.js';
+
 export const COURT = Object.freeze({ length: 28, width: 15, basketX: 12.2, rimHeight: 3.05 });
 export const SQUADS = [
   { id: 'tokyo', name: 'TOKYO SPARKS', code: 'TKY', color: 0x85d6ed, trim: 0x172c43, names: ['Kaito Sora', 'Ren Namba', 'Haru Sato', 'Yuto Arai', 'Daiki Mori'] },
@@ -7,7 +9,6 @@ export const SQUADS = [
 ];
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
-const formation = [{x: -8.8, z: 0}, {x: -8.1, z: -4.9}, {x: -8.1, z: 4.9}, {x: -4.1, z: -2.9}, {x: -4.1, z: 2.9}];
 
 export class BasketballMatch {
   constructor(onEvent = () => {}, random = Math.random) {
@@ -69,6 +70,7 @@ export class BasketballMatch {
         p.action = 'idle';
       }
     }
+    resetIntent(this);
     this.syncHeldBall();
   }
   syncHeldBall() {
@@ -82,49 +84,12 @@ export class BasketballMatch {
     return this.players.filter(p => p.team !== player.team).reduce((a, b) => dist(player, a) < dist(player, b) ? a : b);
   }
   movePlayers(dt) {
-    for (const p of this.players) {
-      const offense = p.team === this.possession;
-      const sign = this.direction(p.team);
-      const basket = this.basket(p.team);
-      let tx, tz;
-      if (offense) {
-        const f = formation[p.slot];
-        tx = sign * (COURT.basketX + f.x);
-        tz = f.z + Math.sin(this.elapsed * .8 + p.id) * .5;
-        if (p === this.owner) {
-          tx = sign * (COURT.basketX - 6.25);
-          tz = clamp(p.z + Math.sin(this.elapsed * .7) * .5, -5.3, 5.3);
-        }
-      } else {
-        const attacker = this.players[this.possession * 5 + p.slot];
-        tx = attacker.x + this.direction(this.possession) * 1.15;
-        tz = attacker.z + (p.slot % 2 ? .35 : -.35);
-        if (this.owner && dist(attacker, this.owner) < 2.5) {
-          tx = (tx + this.owner.x + this.direction(this.possession) * .8) / 2;
-          tz = (tz + this.owner.z) / 2;
-        }
-      }
-      if (p === this.owner && Math.abs(basket.x - p.x) < 5.4) tx = p.x;
-      const dx = clamp(tx, -13.2, 13.2) - p.x;
-      const dz = clamp(tz, -6.6, 6.6) - p.z;
-      const length = Math.hypot(dx, dz);
-      const pace = offense ? (p === this.owner ? 3.25 : 3.65) : 3.4;
-      const movement = Math.min(length, pace * dt);
-      p.vx = length > .01 ? dx / length * movement / dt : 0;
-      p.vz = length > .01 ? dz / length * movement / dt : 0;
-      p.x += p.vx * dt;
-      p.z += p.vz * dt;
-      p.speed = Math.hypot(p.vx, p.vz);
-      p.phase += p.speed * dt * 6;
-      p.actionTime = Math.max(0, p.actionTime - dt);
-      if (p.actionTime === 0) p.action = p === this.owner ? 'dribble' : 'idle';
-    }
+    updateMovement(this, dt);
   }
   pass() {
     if (!this.owner || this.flight) return;
     const from = this.owner;
-    const options = this.players.filter(p => p.team === from.team && p !== from);
-    const recipient = options[Math.floor(this.random() * options.length)];
+    const recipient = chooseReceiver(this, from);
     this.flight = {kind: 'pass', team: from.team, from: from.id, to: recipient.id,
       start: {x: this.ball.x, y: 1.55, z: this.ball.z},
       end: {x: recipient.x, y: 1.45, z: recipient.z},
@@ -171,7 +136,8 @@ export class BasketballMatch {
       } else {
         this.owner = recipient;
         this.passes[f.team]++;
-        this.decision = .8 + this.random() * 1.2;
+        this.decision = .65 + this.random() * .75;
+        resetIntent(this);
         this.syncHeldBall();
       }
     } else if (f.kind === 'shot') {
@@ -391,10 +357,29 @@ export class BasketballMatch {
     }
     this.decision -= dt;
     if (this.decision > 0) return;
-    const range = dist(this.owner, this.basket(this.possession));
-    const urgency = this.shotClock < 5;
-    if (urgency || (range < 8.3 && this.possessionAge > 3.8 && this.random() < (this.settings.style === 'perimeter' ? .62 : .46))) {
+    const carrier = this.owner;
+    const range = dist(carrier, this.basket(this.possession));
+    const gap = dist(carrier, this.nearestDefender(carrier));
+    const urgency = this.shotClock < 5.5;
+    const openLook = range < 8.5 && gap > 1.75;
+    const inclination = this.settings.style === 'perimeter' ? .59 : .47;
+    const mature = this.possessionAge > 4.0;
+    const shouldShoot = urgency || range < 3.2
+      || (mature && range < 9 && this.random() <
+        (openLook ? inclination + .25 : inclination * .6));
+    if (shouldShoot) {
       this.shoot();
+    } else if (range > 4.0 && gap > 1.5 && this.shotClock > 8
+        && this.random() < .43) {
+      // Keep dribbling for a short, individual drive rather than passing on
+      // every decision. Steering will follow the holder's current intention.
+      carrier.plan = 'drive';
+      carrier.intent = 'drive';
+      const sign = this.direction(carrier.team);
+      carrier.targetX = sign * (COURT.basketX - Math.max(2.7, range - 3.2));
+      carrier.targetZ = clamp(carrier.z * .6 + carrier.variation * 1.3, -3.2, 3.2);
+      carrier.thinkIn = 1.5;
+      this.decision = 1.1 + this.random() * .75;
     } else {
       this.pass();
     }
@@ -407,6 +392,7 @@ export class BasketballMatch {
       teamFouls: [...this.teamFouls], playerFouls: [...this.playerFouls],
       ftAttempts: [...this.ftAttempts], ftMakes: [...this.ftMakes],
       freeThrows: this.freeThrows ? {...this.freeThrows} : null,
-      players: this.players.map(p => ({id: p.id, team: p.team, x: p.x, z: p.z, action: p.action}))};
+      players: this.players.map(p => ({id: p.id, team: p.team, x: p.x, z: p.z,
+        speed: p.speed, action: p.action, intent: p.intent, targetX: p.targetX, targetZ: p.targetZ}))};
   }
 }
