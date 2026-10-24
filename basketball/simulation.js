@@ -265,12 +265,13 @@ export class BasketballMatch {
     const shooter = this.players[shooterId];
     if (!shooter || !Number.isInteger(attempts) || attempts < 1) return;
     const sign = this.direction(shooter.team);
+    const incoming={...this.ball};
     this.possession = shooter.team;
     this.flight = null;
     this.owner = null;
     this.pause = 0;
     this.freeThrows = {shooter: shooterId, team: shooter.team, total: attempts, remaining: attempts,
-      completed: 0, made: 0, state: 'setup', timer: FT_SETUP_SECONDS, lastMade: false};
+      completed:0,made:0,state:'setup',timer:FT_SETUP_SECONDS,lastMade:false,setupStart:incoming};
     // Arrange shooter at the stripe, teammates and opponents along the lane.
     for (const p of this.players) {
       p.speed = p.vx = p.vz = 0;
@@ -283,7 +284,8 @@ export class BasketballMatch {
         p.z = (slot % 2 ? -1 : 1) * (2.4 + offset + Math.floor(slot / 2) * .8);
       }
     }
-    this.ball = {x: shooter.x + sign * .22, y: 1.75, z: 0};
+    this.ball={...incoming};
+    this.ballControl={mode:'freeThrow',from:shooterId};
     this.emit('freeThrowStart', {team: shooter.team, player: shooterId, attempts});
   }
   updateFreeThrows(dt) {
@@ -293,7 +295,8 @@ export class BasketballMatch {
     const direction = this.direction(ft.team);
     ft.timer -= dt;
     if (ft.state === 'setup') {
-      this.ball = {x: shooter.x + direction * .23, y: 1.65, z: shooter.z};
+      this.ball=mixPoint(ft.setupStart,releasePoint(shooter,'shot'),
+        blend(1-Math.max(0,ft.timer)/FT_SETUP_SECONDS));
       if (ft.timer <= 0) {
         ft.state = 'flight';
         ft.timer = FT_FLIGHT_SECONDS;
@@ -330,9 +333,10 @@ export class BasketballMatch {
       remaining: ft.remaining, made: ft.made,
     });
     if (ft.remaining > 0) {
-      ft.state = 'setup';
-      ft.timer = FT_SETUP_SECONDS;
-      shooter.action = 'idle';
+      ft.state='setup';
+      ft.timer=FT_SETUP_SECONDS;
+      ft.setupStart={...this.ball};
+      shooter.action='idle';
       return;
     }
     this.freeThrows = null;
