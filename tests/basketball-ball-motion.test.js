@@ -130,3 +130,41 @@ test('receiver animation is active until completion of catch phase',()=>{
   game.updateFlight(f.duration-t);
   assert.equal(game.owner,receiver);
 });
+
+test('a scored ball travels to the inbounder without snapping at the restart',()=>{
+  const game=new BasketballMatch(()=>{},()=>0);
+  game.shoot();
+  game.updateFlight(game.flight.duration);
+  assert.equal(game.pause,1.5);
+  let last={...game.ball};
+  let maximumJump=0;
+  for(let i=0;i<16;i++){
+    game.update(.1);
+    maximumJump=Math.max(maximumJump,distance(last,game.ball));
+    last={...game.ball};
+    if(game.pause===0)break;
+  }
+  assert.equal(game.possession,1);
+  assert.ok(maximumJump<.8,'inbound teleport: '+maximumJump);
+});
+
+test('shot-clock violation preserves ball continuity while resetting players',()=>{
+  const game=new BasketballMatch(()=>{},()=>.4);
+  const prior={...game.ball};
+  game.shotClock=.01;
+  game.update(.02);
+  assert.equal(game.possession,1);
+  assert.ok(distance(prior,game.ball)<1e-9);
+  game.update(.01);
+  assert.ok(distance(prior,game.ball)<.8);
+});
+
+test('transition into dribbling after a steal eases the ball into the new hand',()=>{
+  const game=new BasketballMatch(()=>{},()=>.4);
+  const prior={...game.ball};
+  game.steal(1,5);
+  assert.equal(game.owner.id,5);
+  assert.ok(distance(prior,game.ball)<1e-9);
+  game.syncHeldBall(.01);
+  assert.ok(distance(prior,game.ball)<.8);
+});
