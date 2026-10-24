@@ -30,6 +30,11 @@ export class BasketballMatch {
     this.rebounds = [0, 0];
     this.steals = [0, 0];
     this.turnovers = [0, 0];
+    this.teamFouls = [0, 0];
+    this.playerFouls = Array(10).fill(0);
+    this.ftAttempts = [0, 0];
+    this.ftMakes = [0, 0];
+    this.freeThrows = null;
     this.possessionTime = [0, 0];
     this.possession = 0;
     this.elapsed = 0;
@@ -137,7 +142,10 @@ export class BasketballMatch {
     const defenderDistance = dist(from, this.nearestDefender(from));
     const probability = clamp((points === 3 ? .39 : .66) - Math.max(0, distance - 3) * .018
       - (defenderDistance < 1.6 ? .13 : 0), .15, .83);
-    this.flight = {kind: 'shot', team: from.team, from: from.id, points, probability,
+    const defender = this.nearestDefender(from);
+    const shootingFoul = defenderDistance < 1.65 && this.random() < .23
+      && this.callFoul(defender.id, from.id, true, points);
+    this.flight = {kind: 'shot', team: from.team, from: from.id, points, probability, shootingFoul,
       start: {x: this.ball.x, y: 1.9, z: this.ball.z},
       end: {x: hoop.x, y: COURT.rimHeight, z: 0},
       t: 0, duration: .85 + distance / 12};
@@ -173,11 +181,15 @@ export class BasketballMatch {
         if (f.points === 3) this.threes[f.team]++;
         this.ball = {...f.end};
         this.emit('score', {team: f.team, player: f.from, points: f.points});
-        this.pause = 1.5;
         this.owner = null;
-        this.nextTeam = 1 - f.team;
+        if (f.shootingFoul) this.beginFreeThrows(f.from, 1);
+        else {this.pause = 1.5; this.nextTeam = 1 - f.team;}
       } else {
         this.emit('miss', {team: f.team, player: f.from, points: f.points});
+        if (f.shootingFoul) {
+          this.beginFreeThrows(f.from, f.points);
+          return;
+        }
         this.flight = {kind: 'rebound', team: f.team, from: f.from,
           start: {...f.end}, end: {x: clamp(f.end.x - this.direction(f.team) * 2.1, -13.3, 13.3),
             y: .18, z: (this.random() - .5) * 5}, t: 0, duration: .75};
@@ -191,6 +203,116 @@ export class BasketballMatch {
       this.shotClock = reboundTeam === f.team ? 14 : 24;
       this.syncHeldBall();
       this.emit('rebound', {team: reboundTeam, player: near.id});
+    }
+  }
+
+  // Simplified FIBA-style bonus: team fouls 1–4 give an inbound;
+  // starting with the fifth team foul in the quarter, two free throws.
+  callFoul(defenderId, attackerId = this.owner?.id, shooting = false, points = 2) {
+    const defender = this.players[defenderId];
+    const attacker = this.players[attackerId];
+    if (!defender || !attacker || defender.team === attacker.team || this.ended || this.freeThrows) return false;
+    this.teamFouls[defender.team]++;
+    this.playerFouls[defenderId]++;
+    this.emit('foul', {
+      team: defender.team, player: defenderId, victim: attackerId, shooting,
+      teamFouls: this.teamFouls[defender.team], playerFouls: this.playerFouls[defenderId],
+      bonus: this.teamFouls[defender.team] >= 5,
+    });
+    if (shooting) return true; // Shot outcome decides the attempts (and-one vs two/three).
+    const offense = attacker.team;
+    if (this.teamFouls[defender.team] >= 5) {
+      this.beginFreeThrows(attackerId, 2);
+    } else {
+      const retainedClock = Math.max(14, this.shotClock);
+      this.startPossession(offense, true);
+      this.shotClock = retainedClock;
+      this.emit('inbound', {team: offense, afterFoul: true});
+    }
+    return true;
+  }
+  beginFreeThrows(shooterId, attempts) {
+    const shooter = this.players[shooterId];
+    if (!shooter || !Number.isInteger(attempts) || attempts < 1) return;
+    const sign = this.direction(shooter.team);
+    this.possession = shooter.team;
+    this.flight = null;
+    this.owner = null;
+    this.pause = 0;
+    this.freeThrows = {shooter: shooterId, team: shooter.team, total: attempts, remaining: attempts,
+      completed: 0, made: 0, state: 'setup', timer: 4.5, lastMade: false};
+    // Arrange shooter at the stripe, teammates and opponents along the lane.
+    for (const p of this.players) {
+      p.speed = p.vx = p.vz = 0;
+      p.action = 'idle';
+      p.actionTime = 0;
+      if (p.id === shooterId) {p.x = sign * (COURT.basketX - 4.55); p.z = 0;}
+      else {
+        const slot = p.slot, offset = p.team === shooter.team ? 1 : 0;
+        p.x = sign * (COURT.basketX - 1.9 - .9 * (slot % 3));
+        p.z = (slot % 2 ? -1 : 1) * (2.4 + offset + Math.floor(slot / 2) * .8);
+      }
+    }
+    this.ball = {x: shooter.x + sign * .22, y: 1.75, z: 0};
+    this.emit('freeThrowStart', {team: shooter.team, player: shooterId, attempts});
+  }
+  updateFreeThrows(dt) {
+    const ft = this.freeThrows;
+    if (!ft) return;
+    const shooter = this.players[ft.shooter];
+    const direction = this.direction(ft.team);
+    ft.timer -= dt;
+    if (ft.state === 'setup') {
+      this.ball = {x: shooter.x + direction * .23, y: 1.65, z: shooter.z};
+      if (ft.timer <= 0) {
+        ft.state = 'flight';
+        ft.timer = 6.8;
+        ft.willMake = this.random() < .76;
+        shooter.action = 'shoot';
+        shooter.actionTime = .8;
+        ft.start = {...this.ball};
+        ft.end = {x: direction * COURT.basketX, y: COURT.rimHeight, z: 0};
+        this.ftAttempts[ft.team]++;
+        this.emit('freeThrowAttempt', {team: ft.team, player: ft.shooter, attempt: ft.completed + 1, total: ft.total});
+      }
+      return;
+    }
+    const t = clamp(1 - ft.timer / 6.8, 0, 1);
+    this.ball = {
+      x: ft.start.x + (ft.end.x - ft.start.x) * t,
+      y: ft.start.y + (ft.end.y - ft.start.y) * t + Math.sin(Math.PI * t) * 1.4,
+      z: ft.start.z + (ft.end.z - ft.start.z) * t,
+    };
+    if (ft.timer > 0) return;
+    ft.completed++;
+    ft.remaining--;
+    ft.lastMade = ft.willMake;
+    if (ft.willMake) {
+      this.score[ft.team]++;
+      this.ftMakes[ft.team]++;
+      ft.made++;
+    }
+    this.emit(ft.willMake ? 'freeThrowMade' : 'freeThrowMissed', {
+      team: ft.team, player: ft.shooter, attempt: ft.completed, total: ft.total,
+      remaining: ft.remaining, made: ft.made,
+    });
+    if (ft.remaining > 0) {
+      ft.state = 'setup';
+      ft.timer = 4.6;
+      shooter.action = 'idle';
+      return;
+    }
+    this.freeThrows = null;
+    if (ft.lastMade) {
+      this.nextTeam = 1 - ft.team;
+      this.owner = null;
+      this.pause = 2;
+    } else {
+      const reboundTeam = this.random() < .7 ? 1 - ft.team : ft.team;
+      this.rebounds[reboundTeam]++;
+      this.startPossession(reboundTeam, true);
+      if (reboundTeam === ft.team) this.shotClock = 14;
+      this.emit('rebound', {team: reboundTeam, player: this.owner.id, afterFreeThrow: true});
     }
   }
   steal(team, playerId = team * 5) {
@@ -212,6 +334,7 @@ export class BasketballMatch {
     this.clock = 0;
     this.flight = null;
     this.owner = null;
+    this.freeThrows = null;
     if (this.quarter === 4) {
       this.ended = true;
       this.emit('fulltime');
@@ -219,6 +342,7 @@ export class BasketballMatch {
     }
     this.emit('quarter', {completed: this.quarter});
     this.quarter++;
+    this.teamFouls = [0, 0];
     this.clock = 600;
     this.pause = 2.3;
     this.nextTeam = this.quarter % 2 === 0 ? 1 : 0;
@@ -227,6 +351,10 @@ export class BasketballMatch {
     if (this.ended || !Number.isFinite(dt) || dt <= 0) return;
     dt = Math.min(dt, .15);
     this.elapsed += dt;
+    if (this.freeThrows) {
+      this.updateFreeThrows(dt);
+      return;
+    }
     if (this.pause > 0) {
       this.pause = Math.max(0, this.pause - dt);
       if (this.pause === 0) {
@@ -246,6 +374,10 @@ export class BasketballMatch {
     this.syncHeldBall();
     if (!this.owner) return;
     const defender = this.nearestDefender(this.owner);
+    if (dist(defender, this.owner) < 1.55 && this.random() < dt * .12) {
+      this.callFoul(defender.id, this.owner.id);
+      return;
+    }
     if (dist(defender, this.owner) < .76 && this.random() < dt * .045) {
       this.steal(defender.team, defender.id);
       return;
@@ -265,6 +397,9 @@ export class BasketballMatch {
       possession: this.possession, owner: this.owner?.id ?? null, flight: this.flight?.kind ?? null,
       ended: this.ended, shots: [...this.shots], makes: [...this.makes], threes: [...this.threes],
       passes: [...this.passes], rebounds: [...this.rebounds], steals: [...this.steals], turnovers: [...this.turnovers],
+      teamFouls: [...this.teamFouls], playerFouls: [...this.playerFouls],
+      ftAttempts: [...this.ftAttempts], ftMakes: [...this.ftMakes],
+      freeThrows: this.freeThrows ? {...this.freeThrows} : null,
       players: this.players.map(p => ({id: p.id, team: p.team, x: p.x, z: p.z, action: p.action}))};
   }
 }
