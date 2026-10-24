@@ -269,7 +269,7 @@ export class BasketballMatch {
         ft.timer = 6.8;
         ft.willMake = this.random() < .76;
         shooter.action = 'shoot';
-        shooter.actionTime = .8;
+        shooter.actionTime = 6.8;
         ft.start = {...this.ball};
         ft.end = {x: direction * COURT.basketX, y: COURT.rimHeight, z: 0};
         this.ftAttempts[ft.team]++;
@@ -278,12 +278,15 @@ export class BasketballMatch {
       return;
     }
     const t = clamp(1 - ft.timer / 6.8, 0, 1);
+    shooter.actionTime = Math.max(0, ft.timer);
     this.ball = {
       x: ft.start.x + (ft.end.x - ft.start.x) * t,
       y: ft.start.y + (ft.end.y - ft.start.y) * t + Math.sin(Math.PI * t) * 1.4,
       z: ft.start.z + (ft.end.z - ft.start.z) * t,
     };
     if (ft.timer > 0) return;
+    shooter.action = 'idle';
+    shooter.actionTime = 0;
     ft.completed++;
     ft.remaining--;
     ft.lastMade = ft.willMake;
@@ -310,9 +313,13 @@ export class BasketballMatch {
     } else {
       const reboundTeam = this.random() < .7 ? 1 - ft.team : ft.team;
       this.rebounds[reboundTeam]++;
-      this.startPossession(reboundTeam, true);
-      if (reboundTeam === ft.team) this.shotClock = 14;
-      this.emit('rebound', {team: reboundTeam, player: this.owner.id, afterFreeThrow: true});
+      const rebounder = this.players.filter(p => p.team === reboundTeam)
+        .sort((a, b) => dist(a, this.ball) - dist(b, this.ball))[0];
+      this.startPossession(reboundTeam);
+      this.owner = rebounder;
+      this.shotClock = reboundTeam === ft.team ? 14 : 24;
+      this.syncHeldBall();
+      this.emit('rebound', {team: reboundTeam, player: rebounder.id, afterFreeThrow: true});
     }
   }
   steal(team, playerId = team * 5) {
