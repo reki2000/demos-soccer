@@ -40,7 +40,7 @@ function laneClearance(match, from, to) {
 }
 
 export function chooseReceiver(match, from) {
-  const attack = match.direction(from.team), hoop = match.basket(from.team);
+  const hoop = match.basket(from.team);
   const choices = match.players.filter(p => p.team === from.team && p !== from);
   return choices.map(p => {
     const closest = match.nearestDefender(p);
@@ -63,7 +63,6 @@ function offensePlan(match, p, holder) {
   if (p === match.owner) {
     const gap = distance(p, match.nearestDefender(p));
     const range = distance(p, match.basket(p.team));
-    const angle = Math.atan2(p.z, Math.max(1, range));
     const availableDrive = gap > 1.55 && range > 3.2 && match.shotClock > 4;
     const chance = (match.random() + p.slot * .14) % 1;
     p.plan = availableDrive && chance < .54 ? 'drive' : 'probe';
@@ -214,7 +213,6 @@ export function updateMovement(match, dt) {
   }
   for(const p of match.players) {
     // Use final displacement rather than requested speed to animate the feet.
-    const before = next[p.id];
     // Collision correction is generally small; apply a smoothed speed cap.
     p.speed = Math.min(3.8, Math.hypot(p.vx,p.vz));
     p.phase += p.speed * dt * 5.4;
