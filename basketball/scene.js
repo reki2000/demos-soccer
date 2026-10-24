@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { COURT } from './simulation.js';
 import { guardPose } from './guard-pose.js';
+import { runningLegPose } from './leg-gait.js';
 
 const material = (color, roughness = .8) => new THREE.MeshStandardMaterial({color, roughness, flatShading: true});
 const lineMaterial = new THREE.LineBasicMaterial({color: 0xf9e9c9});
@@ -82,11 +83,18 @@ function createAthlete(player, team) {
     const thigh = new THREE.Group();
     thigh.position.set(side * .105,.99,0);
     group.add(thigh);
-    mesh(thigh, new THREE.CylinderGeometry(.088,.072,.48,7), skin,0,-.23,0);
-    mesh(thigh, new THREE.CylinderGeometry(.103,.088,.21,7), trim,0,-.055,0);
-    mesh(thigh, new THREE.CylinderGeometry(.063,.052,.38,7),skin,0,-.64,0);
-    const boot = mesh(thigh,new THREE.BoxGeometry(.14,.11,.26),shoe,0,-.88,.07);
-    legs.push(thigh);
+    mesh(thigh, new THREE.CylinderGeometry(.088,.072,.44,7), skin, 0,-.22,0);
+    mesh(thigh, new THREE.CylinderGeometry(.103,.088,.21,7), trim, 0,-.055,0);
+    const knee = new THREE.Group();
+    knee.position.y = -.45;
+    thigh.add(knee);
+    mesh(knee, new THREE.IcosahedronGeometry(.078,1), skin, 0,0,0);
+    mesh(knee, new THREE.CylinderGeometry(.063,.053,.42,7), skin, 0,-.215,0);
+    const ankle = new THREE.Group();
+    ankle.position.y = -.43;
+    knee.add(ankle);
+    mesh(ankle, new THREE.BoxGeometry(.14,.11,.26), shoe, 0,-.055,.07);
+    legs.push({hip:thigh, knee, ankle});
     const arm = new THREE.Group();
     arm.position.set(side * .235,1.53,0);
     torso.add(arm);
@@ -281,12 +289,18 @@ export class ArenaScene {
       model.group.rotation.y += turn * (1-Math.exp(-dt*(guard?5.5:6)));
       const running=Math.min(1,p.speed/3.5);
       const wave=Math.sin(p.phase)*.67*running;
-      const defendFactor=guard? .36 : 1;
       const crouch=guard?.crouch ?? 0;
+      // Hip, knee and ankle are separate joints. Each leg alternates between
+      // planted support and bent-knee recovery, with a small guarded shuffle.
+      const legBlend=1-Math.exp(-Math.min(dt,.08)*12);
       for(let i=0;i<2;i++){
         const side=i?1:-1;
-        model.legs[i].rotation.x=(i?-wave:wave)*defendFactor + (guard?.role==='contest' ? -.12 : 0);
-        model.legs[i].rotation.z=side*(guard?.footSpread ?? 0);
+        const pose=runningLegPose(p.phase,p.speed,!!guard,side,guard?.footSpread ?? 0);
+        const leg=model.legs[i];
+        leg.hip.rotation.x += (pose.hipX-leg.hip.rotation.x)*legBlend;
+        leg.hip.rotation.z += (pose.hipZ-leg.hip.rotation.z)*legBlend;
+        leg.knee.rotation.x += (pose.kneeX-leg.knee.rotation.x)*legBlend;
+        leg.ankle.rotation.x += (pose.ankleX-leg.ankle.rotation.x)*legBlend;
       }
       const ft=this.match.freeThrows;
       const isFreeThrow=ft?.shooter===p.id && ft.state==='flight';
