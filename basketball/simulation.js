@@ -1,6 +1,7 @@
 import { updateMovement, resetIntent, chooseReceiver } from './tactics.js';
 
-export const COURT = Object.freeze({ length: 28, width: 15, basketX: 12.2, rimHeight: 3.05 });
+import { COURT } from './court.js';
+export { COURT } from './court.js';
 export const SQUADS = [
   { id: 'tokyo', name: 'TOKYO SPARKS', code: 'TKY', color: 0x85d6ed, trim: 0x172c43, names: ['Kaito Sora', 'Ren Namba', 'Haru Sato', 'Yuto Arai', 'Daiki Mori'] },
   { id: 'osaka', name: 'OSAKA WOLVES', code: 'OSK', color: 0xefb969, trim: 0x4d2c22, names: ['Riku Hayashi', 'Sho Kondo', 'Leo Tanaka', 'Akira Ueda', 'Naoki Tsuji'] },
