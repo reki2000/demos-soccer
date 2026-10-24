@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { BasketballMatch, COURT, SQUADS } from '../basketball/simulation.js';
+import { resetIntent } from '../basketball/tactics.js';
 
 test('basketball fixture starts with ten players and a 24-second possession', () => {
   const game = new BasketballMatch();
@@ -266,6 +267,7 @@ test('on-ball handler advances and different teammates respond after receiving a
   assert.ok(game.owner.x > -7.2,'Owner must move rather than stand still');
   const target=game.players[2];
   game.owner=target;
+  resetIntent(game); // A completed pass resets all player plans in the live simulation.
   game.decision=1;
   const prevIntent=target.intent;
   // The next plan belongs to the new ball-handler, not the old slot zero.
