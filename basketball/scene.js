@@ -274,7 +274,7 @@ export class ArenaScene {
       if (p.action==='shoot') {
         const ft = this.match.freeThrows;
         const isFreeThrow = ft?.shooter === p.id && ft.state === 'flight';
-        const progress = isFreeThrow ? 1 - ft.timer / 6.8 : 1 - p.actionTime / .8;
+        const progress = isFreeThrow ? 1 - ft.timer / 1.65 : 1 - p.actionTime / .8;
         model.torso.position.y=(isFreeThrow ? .06 : .24) * Math.sin(Math.PI * Math.max(0, Math.min(1, progress)));
         model.arms[0].rotation.x=-2.5;
         model.arms[1].rotation.x=-2.5;
