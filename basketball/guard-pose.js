@@ -35,7 +35,7 @@ export function guardPose(match, player) {
     // Wide stance and two active hands prevent a constant T-pose.
     for (const [i, arm] of arms.entries()) {
       arm.shoulderX = -.95 - close * .35 + (i === activeHand ? -.24 : 0) + sway;
-      arm.shoulderZ = (i ? 1 : -1) * (.58 + .12 * Math.sin(clock * 2.7 + player.id));
+      arm.shoulderZ = (i ? 1 : -1) * (.67 + .07 * Math.sin(clock * 2.7 + player.id));
       arm.elbowX = -.55;
     }
   } else if (role === 'deny') {
