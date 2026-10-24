@@ -268,7 +268,10 @@ export class ArenaScene {
       model.arms[0].rotation.x=-wave*.65;
       model.arms[1].rotation.x=wave*.65;
       if (p.action==='shoot') {
-        model.torso.position.y=.24*Math.sin(Math.PI*Math.min(1,p.actionTime/.8));
+        const ft = this.match.freeThrows;
+        const isFreeThrow = ft?.shooter === p.id && ft.state === 'flight';
+        const progress = isFreeThrow ? 1 - ft.timer / 6.8 : 1 - p.actionTime / .8;
+        model.torso.position.y=(isFreeThrow ? .06 : .24) * Math.sin(Math.PI * Math.max(0, Math.min(1, progress)));
         model.arms[0].rotation.x=-2.5;
         model.arms[1].rotation.x=-2.5;
       } else {
