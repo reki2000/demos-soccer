@@ -15,12 +15,22 @@ const captions = {
   quarter: 'クォーター終了。次のピリオドへ。',
   inbound: 'インバウンド。プレー再開。',
   fulltime: 'ゲーム終了。両チームのスコアが確定した。',
+  foul: 'ディフェンスのファウル。笛が鳴りました。',
+  freeThrowStart: 'フリースロー。プレーヤーがラインに立ちます。',
+  freeThrowAttempt: 'フリースローのボールが放たれた。',
+  freeThrowMade: 'フリースロー成功！ 1点追加。',
+  freeThrowMissed: 'フリースロー失敗。',
 };
 function displayEvent(type, info) {
-  const major = ['score','quarter','fulltime','violation'].includes(type);
+  const major = ['score','quarter','fulltime','violation','foul','freeThrowStart','freeThrowMade','freeThrowMissed'].includes(type);
   const title = type === 'score' ? (info.points === 3 ? 'THREE POINTS!' : 'TWO POINTS!')
     : type === 'fulltime' ? 'FULL TIME'
     : type === 'quarter' ? 'END OF Q' + info.completed
+    : type === 'foul' ? 'PERSONAL FOUL'
+    : type === 'freeThrowStart' ? 'FREE THROWS'
+    : type === 'freeThrowAttempt' ? 'AT THE LINE'
+    : type === 'freeThrowMade' ? 'FREE THROW GOOD'
+    : type === 'freeThrowMissed' ? 'FREE THROW MISSED'
     : type === 'violation' ? 'SHOT CLOCK'
     : type === 'steal' ? 'STEAL!' : type === 'rebound' ? 'REBOUND' : type === 'shot' ? 'SHOT ATTEMPT'
     : type === 'pass' ? 'PASS' : 'PLAY ON';
@@ -29,6 +39,18 @@ function displayEvent(type, info) {
     const player = match.players[info.player];
     description = squads[info.team].code + ' · #' + player.number + ' ' + squads[info.team].names[player.slot] +
       '  /  ' + match.score.join(' : ');
+  }
+  if (type === 'foul') {
+    const defender = match.players[info.player];
+    description = squads[info.team].code + ' · #' + defender.number + ' ' + squads[info.team].names[defender.slot] +
+      ' / ' + info.playerFouls + ' PF · ' + info.teamFouls + ' TEAM FOULS' +
+      (info.shooting ? ' · SHOOTING FOUL' : info.bonus ? ' · BONUS' : '');
+  }
+  if (type === 'freeThrowStart') description = squads[info.team].names[match.players[info.player].slot] +
+    ' · ' + info.attempts + ' FREE THROW' + (info.attempts > 1 ? 'S' : '');
+  if (type === 'freeThrowMade' || type === 'freeThrowMissed') {
+    description = squads[info.team].code + ' · ' + info.attempt + '/' + info.total +
+      ' · ' + match.score.join(' : ');
   }
   $('commentary').textContent = description;
   if (type === 'pass' || type === 'shot' || type === 'rebound') return;
@@ -136,7 +158,7 @@ function formatClock(time) {
 function updateUI() {
   $('period').textContent = match.ended ? 'FT' : 'Q' + match.quarter;
   $('match-time').textContent = formatClock(match.clock);
-  $('shot-clock').textContent = String(Math.ceil(match.shotClock)).padStart(2,'0');
+  $('shot-clock').textContent = match.freeThrows ? 'FT' : String(Math.ceil(match.shotClock)).padStart(2,'0');
   $('shot-clock').classList.toggle('urgent', match.shotClock <= 5);
   for (let i = 0; i < 2; i++) {
     const side = i === 0 ? 'home' : 'away';
@@ -144,13 +166,15 @@ function updateUI() {
     $(side + '-fg').textContent = match.makes[i] + '/' + match.shots[i];
     $(side + '-rebounds').textContent = match.rebounds[i];
     $(side + '-turnovers').textContent = match.turnovers[i];
+    $(side + '-fouls').textContent = match.teamFouls[i];
+    $(side + '-ft').textContent = match.ftMakes[i] + '/' + match.ftAttempts[i];
   }
   const total = match.possessionTime[0] + match.possessionTime[1];
   const pct = total > 0 ? Math.round(100 * match.possessionTime[0] / total) : 50;
   $('home-possession').textContent = pct + '%';
   $('away-possession').textContent = 100 - pct + '%';
   $('possession-fill').style.width = pct + '%';
-  const p = match.owner;
+  const p = match.freeThrows ? match.players[match.freeThrows.shooter] : match.owner;
   $('player-card').hidden = !p;
   if (p) {
     $('player-number').textContent = p.number;
