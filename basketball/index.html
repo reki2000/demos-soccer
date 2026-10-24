@@ -11,8 +11,8 @@
 <body>
 <header class="topbar">
   <a class="brand" href="./"><span class="brand-icon">↗</span> COURTSIDE<span class="brand-dot">®</span></a>
-  <nav><b>MATCH CENTER</b><span>3D BASKETBALL SIMULATOR</span></nav>
-  <a class="sibling" href="../">FOOTBALL EDITION ↗</a>
+  <nav class="sport-switch" aria-label="スポーツを切り替え"><a href="../">SOCCER</a><a class="active" href="./" aria-current="page">BASKETBALL</a></nav>
+  <span class="sibling">3D SPORTS SIMULATOR</span>
 </header>
 <main>
   <div class="page-heading">
@@ -60,6 +60,8 @@
           <div class="simple-stat"><div class="stat-label">FG成功 <span>FIELD GOALS</span></div><div><b id="home-fg">0/0</b><span>—</span><b id="away-fg">0/0</b></div></div>
           <div class="simple-stat"><div class="stat-label">リバウンド <span>REBOUNDS</span></div><div><b id="home-rebounds">0</b><span>—</span><b id="away-rebounds">0</b></div></div>
           <div class="simple-stat"><div class="stat-label">ターンオーバー <span>TURNOVERS</span></div><div><b id="home-turnovers">0</b><span>—</span><b id="away-turnovers">0</b></div></div>
+          <div class="simple-stat"><div class="stat-label">チームファウル <span>TEAM FOULS / Q</span></div><div><b id="home-fouls">0</b><span>—</span><b id="away-fouls">0</b></div></div>
+          <div class="simple-stat"><div class="stat-label">フリースロー <span>FREE THROWS</span></div><div><b id="home-ft">0/0</b><span>—</span><b id="away-ft">0/0</b></div></div>
         </div>
       </section>
     </section>
@@ -86,7 +88,7 @@
         <div class="card-heading"><span class="eyebrow">03 / GAME PLAN</span><h2>Play style</h2><p>シュート判断を調整する。</p></div>
         <label for="style-select">OFFENSE</label>
         <select id="style-select"><option value="balanced">BALANCED / バランス</option><option value="perimeter">PERIMETER / 外角重視</option></select>
-        <div class="rule-note"><strong>GAME RULES</strong><p>5対5・10分×4クォーター・24秒ショットクロック。2点・3点、リバウンド、スティール、バックコートからの攻撃を簡易再現します。</p></div>
+        <div class="rule-note"><strong>GAME RULES</strong><p>5対5・10分×4クォーター・24秒ショットクロック。シュート中のファウルは2本・3本、得点時は追加1本。第5チームファウル以降は2本のフリースロー。フリースロー中は時計を停止します。</p></div>
       </section>
     </aside>
   </div>
