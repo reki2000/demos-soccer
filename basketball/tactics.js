@@ -1,7 +1,7 @@
 // Each player maintains an independent intention. The team shape is a guide,
 // not a fixed set of targets; on-ball pressure, cuts, help defense and spacing
 // all change where players try to move.
-import { COURT } from './simulation.js';
+import { COURT } from './court.js';
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const distance = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
