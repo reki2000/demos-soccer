@@ -9,6 +9,8 @@ export const SQUADS = [
 ];
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+const FT_SETUP_SECONDS = 2.2;
+const FT_FLIGHT_SECONDS = 1.65;
 
 export class BasketballMatch {
   constructor(onEvent = () => {}, random = Math.random) {
@@ -206,7 +208,7 @@ export class BasketballMatch {
     this.owner = null;
     this.pause = 0;
     this.freeThrows = {shooter: shooterId, team: shooter.team, total: attempts, remaining: attempts,
-      completed: 0, made: 0, state: 'setup', timer: 4.5, lastMade: false};
+      completed: 0, made: 0, state: 'setup', timer: FT_SETUP_SECONDS, lastMade: false};
     // Arrange shooter at the stripe, teammates and opponents along the lane.
     for (const p of this.players) {
       p.speed = p.vx = p.vz = 0;
@@ -232,10 +234,10 @@ export class BasketballMatch {
       this.ball = {x: shooter.x + direction * .23, y: 1.65, z: shooter.z};
       if (ft.timer <= 0) {
         ft.state = 'flight';
-        ft.timer = 6.8;
+        ft.timer = FT_FLIGHT_SECONDS;
         ft.willMake = this.random() < .76;
         shooter.action = 'shoot';
-        shooter.actionTime = 6.8;
+        shooter.actionTime = FT_FLIGHT_SECONDS;
         ft.start = {...this.ball};
         ft.end = {x: direction * COURT.basketX, y: COURT.rimHeight, z: 0};
         this.ftAttempts[ft.team]++;
@@ -243,7 +245,7 @@ export class BasketballMatch {
       }
       return;
     }
-    const t = clamp(1 - ft.timer / 6.8, 0, 1);
+    const t = clamp(1 - ft.timer / FT_FLIGHT_SECONDS, 0, 1);
     shooter.actionTime = Math.max(0, ft.timer);
     this.ball = {
       x: ft.start.x + (ft.end.x - ft.start.x) * t,
@@ -267,7 +269,7 @@ export class BasketballMatch {
     });
     if (ft.remaining > 0) {
       ft.state = 'setup';
-      ft.timer = 4.6;
+      ft.timer = FT_SETUP_SECONDS;
       shooter.action = 'idle';
       return;
     }
