@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { COURT } from './simulation.js';
+import { guardPose } from './guard-pose.js';
 
 const material = (color, roughness = .8) => new THREE.MeshStandardMaterial({color, roughness, flatShading: true});
 const lineMaterial = new THREE.LineBasicMaterial({color: 0xf9e9c9});
@@ -89,10 +90,22 @@ function createAthlete(player, team) {
     const arm = new THREE.Group();
     arm.position.set(side * .235,1.53,0);
     torso.add(arm);
-    mesh(arm,new THREE.CylinderGeometry(.08,.068,.16,7),main,0,-.055,0);
-    mesh(arm,new THREE.CylinderGeometry(.061,.048,.39,7),skin,0,-.32,0);
-    mesh(arm,new THREE.IcosahedronGeometry(.065,1),skin,0,-.55,0);
-    arms.push(arm);
+    mesh(arm,new THREE.CylinderGeometry(.08,.069,.14,7),main,0,-.048,0);
+    mesh(arm,new THREE.CylinderGeometry(.061,.052,.14,7),skin,0,-.17,0);
+    const elbow = new THREE.Group();
+    elbow.position.y = -.245;
+    arm.add(elbow);
+    mesh(elbow,new THREE.IcosahedronGeometry(.062,1),skin,0,0,0);
+    mesh(elbow,new THREE.CylinderGeometry(.052,.042,.25,7),skin,0,-.125,0);
+    const wrist = new THREE.Group();
+    wrist.position.y=-.255;
+    elbow.add(wrist);
+    const palm=mesh(wrist,new THREE.BoxGeometry(.108,.125,.040),skin,0,-.062,0);
+    palm.rotation.x=-.18; // Visible open palm, rather than a spherical fist.
+    for(let finger=-1;finger<=1;finger++) {
+      mesh(wrist,new THREE.CylinderGeometry(.013,.010,.075,5),skin,finger*.031,-.153,.014);
+    }
+    arms.push({shoulder:arm, elbow, wrist});
   }
   const plate = document.createElement('canvas');
   plate.width = 128; plate.height = 128;
@@ -259,24 +272,53 @@ export class ArenaScene {
   update(dt) {
     for (const model of this.models) {
       const p = model.player;
-      model.group.position.set(p.x,0,p.z);
-      if(p.speed>.1) model.group.rotation.y=Math.atan2(p.vx,p.vz);
-      const running = Math.min(1,p.speed/3.5);
-      const wave = Math.sin(p.phase)*.67*running;
-      model.legs[0].rotation.x=wave;
-      model.legs[1].rotation.x=-wave;
-      model.arms[0].rotation.x=-wave*.65;
-      model.arms[1].rotation.x=wave*.65;
-      if (p.action==='shoot') {
-        const ft = this.match.freeThrows;
-        const isFreeThrow = ft?.shooter === p.id && ft.state === 'flight';
-        const progress = isFreeThrow ? 1 - ft.timer / 6.8 : 1 - p.actionTime / .8;
-        model.torso.position.y=(isFreeThrow ? .06 : .24) * Math.sin(Math.PI * Math.max(0, Math.min(1, progress)));
-        model.arms[0].rotation.x=-2.5;
-        model.arms[1].rotation.x=-2.5;
-      } else {
-        model.torso.position.y=.025*Math.abs(Math.sin(p.phase))*running;
-        if (p.action==='dribble') model.arms[1].rotation.x=-.35-.8*Math.abs(Math.sin(this.match.elapsed*10));
+      const guard = guardPose(this.match, p);
+      model.group.position.set(p.x, 0, p.z);
+      // Defense faces the assigned player/ball while shuffling sideways.
+      // Offense continues to face its movement direction.
+      const facing = guard?.faceAngle ?? (p.speed > .1 ? Math.atan2(p.vx,p.vz) : model.group.rotation.y);
+      const turn = Math.atan2(Math.sin(facing-model.group.rotation.y),Math.cos(facing-model.group.rotation.y));
+      model.group.rotation.y += turn * (1-Math.exp(-dt*(guard?5.5:6)));
+      const running=Math.min(1,p.speed/3.5);
+      const wave=Math.sin(p.phase)*.67*running;
+      const defendFactor=guard? .36 : 1;
+      const crouch=guard?.crouch ?? 0;
+      for(let i=0;i<2;i++){
+        const side=i?1:-1;
+        model.legs[i].rotation.x=(i?-wave:wave)*defendFactor + (guard?.role==='contest' ? -.12 : 0);
+        model.legs[i].rotation.z=side*(guard?.footSpread ?? 0);
+      }
+      const ft=this.match.freeThrows;
+      const isFreeThrow=ft?.shooter===p.id && ft.state==='flight';
+      const isShooting=p.action==='shoot';
+      const shotProgress=isFreeThrow ? 1-ft.timer/1.65 : 1-p.actionTime/.8;
+      const hop=isShooting ? (isFreeThrow?.06:.24)*
+        Math.sin(Math.PI*Math.max(0,Math.min(1,shotProgress))) : 0;
+      const naturalBounce=.025*Math.abs(Math.sin(p.phase))*running;
+      model.torso.position.y = (guard ? -crouch*.6 : naturalBounce) + hop;
+      model.torso.rotation.x=guard ? .10 : 0;
+      const blend=1-Math.exp(-dt*11);
+      for(let i=0;i<2;i++){
+        const side=i?1:-1;
+        const arm=model.arms[i];
+        let x=(i?wave:-wave)*.65, z=side*.08, ex=-.15, ez=0, wx=-.12;
+        if(guard){
+          const target=guard.arms[i];
+          x=target.shoulderX;z=target.shoulderZ;
+          ex=target.elbowX;ez=target.elbowZ;wx=target.wristX;
+        }else if(isShooting){
+          x=-2.55;z=side*.22;ex=-.20;wx=-.1;
+        }else if(p.action==='dribble'&&i===1){
+          x=-.35-.8*Math.abs(Math.sin(this.match.elapsed*10));
+          ex=-.60;
+        }else if(p.action==='pass'){
+          x=-1.18;z=side*.18;ex=-.4;
+        }
+        arm.shoulder.rotation.x += (x-arm.shoulder.rotation.x)*blend;
+        arm.shoulder.rotation.z += (z-arm.shoulder.rotation.z)*blend;
+        arm.elbow.rotation.x += (ex-arm.elbow.rotation.x)*blend;
+        arm.elbow.rotation.z += (ez-arm.elbow.rotation.z)*blend;
+        arm.wrist.rotation.x += (wx-arm.wrist.rotation.x)*blend;
       }
     }
     const b=this.match.ball;
@@ -300,11 +342,11 @@ export class ArenaScene {
         cameraPos=new THREE.Vector3(ball.x-dir*5,8,ball.z+12);
         fov=48;
       }else {
-        target=new THREE.Vector3(ball.x*.44,.3,ball.z*.26);
-        cameraPos=new THREE.Vector3(ball.x*.44,16,23);
+        target=new THREE.Vector3(ball.x*.27,.3,ball.z*.20);
+        cameraPos=new THREE.Vector3(ball.x*.27,17.2,24);
         fov=44;
       }
-      const factor=1-Math.exp(-Math.min(dt,.08)*3.5);
+      const factor=1-Math.exp(-Math.min(dt,.08)*1.55);
       this.camera.position.lerp(cameraPos,factor);
       this.target.lerp(target,factor);
       this.camera.lookAt(this.target);

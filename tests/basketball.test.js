@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { BasketballMatch, COURT, SQUADS } from '../basketball/simulation.js';
+import { resetIntent } from '../basketball/tactics.js';
 
 test('basketball fixture starts with ten players and a 24-second possession', () => {
   const game = new BasketballMatch();
@@ -219,4 +220,68 @@ test('team fouls reset each quarter while player foul totals persist', () => {
   assert.deepEqual(game.teamFouls,[0,0]);
   assert.equal(game.playerFouls[5],1);
   assert.equal(game.freeThrows,null);
+});
+
+
+test('off-ball players make distinct individual decisions and avoid stacking up', () => {
+  let state = 0x836281;
+  const random = () => {state = (Math.imul(state,1664525)+1013904223)>>>0; return state/4294967296;};
+  const game = new BasketballMatch(()=>{},random);
+  game.possessionAge = 6;
+  const seen = new Set();
+  const trajectories = game.players.map(()=>[]);
+  let minimumSpacing = Infinity;
+  for(let tick=0;tick<320;tick++){
+    game.elapsed += .05;
+    game.movePlayers(.05);
+    for(const p of game.players){
+      seen.add(p.intent);
+      if(tick % 20 === 0) trajectories[p.id].push([p.x,p.z]);
+      assert.ok(Math.abs(p.x) <= 13.31 && Math.abs(p.z) <= 6.81);
+      assert.ok(Number.isFinite(p.vx) && Number.isFinite(p.vz));
+      assert.ok(p.speed <= 3.81);
+    }
+    for(let i=0;i<10;i++)for(let j=i+1;j<10;j++) {
+      const a=game.players[i], b=game.players[j];
+      const gap=Math.hypot(a.x-b.x,a.z-b.z);
+      minimumSpacing=Math.min(minimumSpacing,gap);
+      assert.ok(gap >= 1.02, 'Players '+i+'/'+j+' too close at tick '+tick+': '+gap);
+    }
+  }
+  assert.ok(seen.size >= 5, 'Expected diverse decisions, got '+[...seen]);
+  const changedPaths = trajectories.filter(points=>{
+    for(let k=2;k<points.length;k++){
+      const a=points[k-2], b=points[k-1], c=points[k];
+      const abx=b[0]-a[0],abz=b[1]-a[1],bcx=c[0]-b[0],bcz=c[1]-b[1];
+      if(Math.abs(abx*bcz-abz*bcx) > .18)return true;
+    }
+    return false;
+  });
+  assert.ok(changedPaths.length>=3, 'Too many straight-line trajectories: '+changedPaths.length);
+});
+
+test('on-ball handler advances and different teammates respond after receiving a pass', () => {
+  const game=new BasketballMatch(()=>{},()=>.35);
+  const initial=game.owner;
+  for(let i=0;i<140;i++){game.elapsed+=.05;game.movePlayers(.05);}
+  assert.ok(game.owner.x > -7.2,'Owner must move rather than stand still');
+  const target=game.players[2];
+  game.owner=target;
+  resetIntent(game); // A completed pass resets all player plans in the live simulation.
+  game.decision=1;
+  const prevIntent=target.intent;
+  // The next plan belongs to the new ball-handler, not the old slot zero.
+  game.movePlayers(.05);
+  for(let i=0;i<40;i++){game.elapsed+=.05;game.movePlayers(.05);}
+  assert.ok(['drive','probe'].includes(target.intent), 'Receiver never took control of a possession');
+  assert.ok(game.players[0].intent !== 'dribble');
+  assert.notEqual(game.owner.id,initial.id);
+});
+
+test('simulation at 1x advances physical positions and the game clock by the same interval', () => {
+  const game=new BasketballMatch(()=>{},()=>.34);
+  const x=game.owner.x;
+  game.update(.1);
+  assert.ok(Math.abs(game.clock-599.9)<1e-8);
+  assert.ok(Math.abs(game.owner.x-x)<.45);
 });
