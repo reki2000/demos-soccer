@@ -260,7 +260,11 @@ export class ArenaScene {
     for (const model of this.models) {
       const p = model.player;
       model.group.position.set(p.x,0,p.z);
-      if(p.speed>.1) model.group.rotation.y=Math.atan2(p.vx,p.vz);
+      if (p.speed > .10) {
+        const aim = Math.atan2(p.vx, p.vz);
+        const delta = Math.atan2(Math.sin(aim - model.group.rotation.y), Math.cos(aim - model.group.rotation.y));
+        model.group.rotation.y += delta * (1 - Math.exp(-dt * 6));
+      }
       const running = Math.min(1,p.speed/3.5);
       const wave = Math.sin(p.phase)*.67*running;
       model.legs[0].rotation.x=wave;
@@ -300,11 +304,11 @@ export class ArenaScene {
         cameraPos=new THREE.Vector3(ball.x-dir*5,8,ball.z+12);
         fov=48;
       }else {
-        target=new THREE.Vector3(ball.x*.44,.3,ball.z*.26);
-        cameraPos=new THREE.Vector3(ball.x*.44,16,23);
+        target=new THREE.Vector3(ball.x*.27,.3,ball.z*.20);
+        cameraPos=new THREE.Vector3(ball.x*.27,17.2,24);
         fov=44;
       }
-      const factor=1-Math.exp(-Math.min(dt,.08)*3.5);
+      const factor=1-Math.exp(-Math.min(dt,.08)*1.55);
       this.camera.position.lerp(cameraPos,factor);
       this.target.lerp(target,factor);
       this.camera.lookAt(this.target);
