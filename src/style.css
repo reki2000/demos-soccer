@@ -16,3 +16,10 @@
 #event-toast.score-event{font-size:16px;letter-spacing:3px;min-width:270px}.event-score{display:block;font-family:Manrope,sans-serif;font-size:clamp(54px,7vw,88px);font-weight:800;line-height:1.2;letter-spacing:8px;color:var(--accent);margin:6px 0}.event-teams{display:block;font-size:13px;font-weight:500;letter-spacing:1px}.replay-badge{position:absolute;right:16px;top:72px;z-index:3;padding:7px 10px;background:#b8d97eed;color:#17241b;font-size:9px;letter-spacing:1px;border-radius:3px}.replay-badge[hidden]{display:none}@media(max-width:460px){.replay-badge{top:108px;font-size:8px}#event-toast.score-event{min-width:230px;font-size:12px}.event-score{font-size:58px}.event-teams{font-size:11px}}
 
 .captions-on .player-card,.captions-on #minimap{bottom:var(--caption-offset,84px)}.captions-on .view-caption{bottom:calc(var(--caption-offset,84px) + 113px)}#viewport.captions-on:has(.player-card[hidden]) .view-caption{bottom:var(--caption-offset,84px)}
+
+/* Shared sport edition switcher */
+.sport-switch{display:flex;align-items:center;justify-content:center;gap:4px;height:auto;font-size:10px;letter-spacing:1px}
+.sport-switch a{display:block;padding:12px 17px;border:1px solid #475348;border-radius:3px;text-decoration:none;color:#aab6a9;white-space:nowrap;transition:background .15s}
+.sport-switch a:hover{background:#29372b;color:#f0f4e7}
+.sport-switch a.active{background:#d4eb87;border-color:#d4eb87;color:#1b2c20;font-weight:800}
+@media(max-width:680px){header{gap:8px;padding:0 3%}.sport-switch{gap:3px}.sport-switch a{padding:11px 8px;font-size:9px}.engine{display:none}.brand{font-size:17px;gap:5px}.brand-icon{width:24px;height:27px;font-size:21px}}
