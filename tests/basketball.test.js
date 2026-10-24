@@ -40,7 +40,7 @@ test('three-point make updates the score and starts an inbound', () => {
   assert.deepEqual(game.makes, [1,0]);
   assert.equal(game.pause, 1.5);
   assert.equal(events.find(e => e.type === 'score').data.points, 3);
-  game.update(1.5);
+  for (let i = 0; i < 11; i++) game.update(.15);
   assert.equal(game.possession, 1);
   assert.equal(game.shotClock, 24);
 });
