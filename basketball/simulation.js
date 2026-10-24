@@ -1,6 +1,8 @@
 import { updateMovement, resetIntent, chooseReceiver } from './tactics.js';
 
 import { COURT } from './court.js';
+import {dribblePoint,releasePoint,receivePoint,arcPoint,mixPoint,blend,controllingHand,
+  DRIBBLE_PERIOD,PASS_GATHER,PASS_CATCH,SHOT_GATHER} from './ball-motion.js';
 export { COURT } from './court.js';
 export const SQUADS = [
   { id: 'tokyo', name: 'TOKYO SPARKS', code: 'TKY', color: 0x85d6ed, trim: 0x172c43, names: ['Kaito Sora', 'Ren Namba', 'Haru Sato', 'Yuto Arai', 'Daiki Mori'] },
@@ -44,13 +46,14 @@ export class BasketballMatch {
     this.elapsed = 0;
     this.possessionAge = 0;
     this.pause = 0;
+    this.ballReturn = null;
     this.ended = false;
     this.flight = null;
     this.owner = null;
     this.players = Array.from({length: 10}, (_, id) => {
       const team = Math.floor(id / 5), slot = id % 5;
       return {id, team, slot, number: [7, 11, 23, 34, 55][slot],
-        x: 0, z: 0, vx: 0, vz: 0, speed: 0, phase: id * .7,
+        x: 0, z: 0, vx: 0, vz: 0, speed: 0, heading: 0, phase: id * .7,
         action: 'idle', actionTime: 0, height: [1.89, 1.94, 1.97, 2.05, 2.11][slot]};
     });
     this.startPossession(0, true);
@@ -63,25 +66,66 @@ export class BasketballMatch {
     this.possessionAge = 0;
     this.decision = 1.7;
     this.flight = null;
-    this.ball = {x: this.owner.x, y: 1.1, z: this.owner.z};
+    this.ballControl = {mode:'dribble',hand:1,phase:0,cooldown:.8};
+    this.ball = dribblePoint(this.owner,1,0);
     if (resetPositions) {
       for (const p of this.players) {
         const sign = this.direction(p.team);
         p.x = -sign * (8.4 - (p.slot > 2 ? 1.2 : 0));
         p.z = [0, -3.7, 3.7, -1.8, 1.8][p.slot];
         p.vx = p.vz = p.speed = 0;
+        p.heading = this.direction(p.team)>0 ? Math.PI/2 : -Math.PI/2;
         p.action = 'idle';
       }
     }
     resetIntent(this);
     this.syncHeldBall();
   }
-  syncHeldBall() {
+  syncHeldBall(dt=0) {
     if (!this.owner) return;
-    const p = this.owner;
-    this.ball.x = p.x + this.direction(p.team) * .32;
-    this.ball.z = p.z + .28;
-    this.ball.y = .35 + .70 * Math.abs(Math.sin(this.elapsed * 10));
+    const control=this.ballControl;
+    if(control?.mode==='secure') {
+      control.elapsed+=dt;
+      const t=blend(Math.min(1,control.elapsed/control.duration));
+      this.ball=mixPoint(control.from,dribblePoint(this.owner,control.hand,0),t);
+      if(control.elapsed<control.duration)return;
+      control.mode='dribble';
+      control.phase=0;
+      control.cooldown=.55;
+    }
+    if(control?.mode!=='dribble') {
+      this.ballControl={mode:'dribble',hand:1,phase:0,cooldown:.75};
+    }
+    const c=this.ballControl;
+    const old=c.phase;
+    c.phase=(c.phase+dt/DRIBBLE_PERIOD)%1;
+    c.cooldown-=dt;
+    // Switch only when the ball is near the floor at the centre of the body.
+    // Both left- and right-hand trajectories meet there.
+    if(dt>0 && old < .5 && c.phase >= .5 && c.cooldown<=0) {
+      const preferred=controllingHand(this,this.owner);
+      if(preferred!==c.hand || this.random()<.3) {
+        c.hand=-c.hand;
+        c.cooldown=.8+this.random()*.8;
+      }
+    }
+    this.ball=dribblePoint(this.owner,c.hand,c.phase);
+    this.owner.action='dribble';
+  }
+  collectBall(player,from=this.ball,duration=.20) {
+    this.owner=player;
+    const hand=controllingHand(this,player);
+    this.ballControl={mode:'secure',from:{...from},hand,phase:0,elapsed:0,duration};
+    this.ball={...from};
+  }
+  prepareInbound(team,duration) {
+    this.nextTeam=team;
+    this.pause=duration;
+    const dir=this.direction(team);
+    const spawn={x:-dir*8.4,z:0,heading:dir>0?Math.PI/2:-Math.PI/2};
+    this.ballReturn={start:{...this.ball},end:dribblePoint(spawn,1,0),duration};
+    this.ballControl={mode:'inbound'};
+    this.owner=null;
   }
   nearestDefender(player) {
     return this.players.filter(p => p.team !== player.team).reduce((a, b) => dist(player, a) < dist(player, b) ? a : b);
@@ -93,12 +137,15 @@ export class BasketballMatch {
     if (!this.owner || this.flight) return;
     const from = this.owner;
     const recipient = chooseReceiver(this, from);
-    this.flight = {kind: 'pass', team: from.team, from: from.id, to: recipient.id,
-      start: {x: this.ball.x, y: 1.55, z: this.ball.z},
-      end: {x: recipient.x, y: 1.45, z: recipient.z},
-      t: 0, duration: .38 + dist(from, recipient) / 10};
-    from.action = 'pass'; from.actionTime = .45;
-    this.owner = null;
+    const duration=PASS_GATHER+(.38+dist(from,recipient)/10)+PASS_CATCH;
+    const hand=this.ballControl?.hand??1;
+    this.flight={kind:'pass',team:from.team,from:from.id,to:recipient.id,
+      hand,start:{...this.ball},release:releasePoint(from,'pass'),
+      end:receivePoint(recipient,hand),t:0,duration,stage:'gather'};
+    from.action='pass';from.actionTime=duration;
+    recipient.action='catch';recipient.actionTime=duration;
+    this.owner=null;
+    this.ballControl={mode:'pass',hand,from:from.id,to:recipient.id};
     this.emit('pass', {team: from.team, player: from.id, target: recipient.id});
   }
   shoot() {
@@ -113,22 +160,44 @@ export class BasketballMatch {
     const defender = this.nearestDefender(from);
     const shootingFoul = defenderDistance < 1.65 && this.random() < .23
       && this.callFoul(defender.id, from.id, true, points);
-    this.flight = {kind: 'shot', team: from.team, from: from.id, points, probability, shootingFoul,
-      start: {x: this.ball.x, y: 1.9, z: this.ball.z},
-      end: {x: hoop.x, y: COURT.rimHeight, z: 0},
-      t: 0, duration: .85 + distance / 12};
-    from.action = 'shoot'; from.actionTime = .8;
-    this.owner = null;
+    const duration=SHOT_GATHER+(.85+distance/12);
+    this.flight={kind:'shot',team:from.team,from:from.id,points,probability,shootingFoul,
+      start:{...this.ball},release:releasePoint(from,'shot'),
+      end:{x:hoop.x,y:COURT.rimHeight,z:0},t:0,duration,stage:'gather'};
+    from.action='shoot';from.actionTime=duration;
+    this.owner=null;
+    this.ballControl={mode:'shot',from:from.id};
     this.shots[from.team]++;
     this.emit('shot', {team: from.team, player: from.id, points, distance});
   }
   updateFlight(dt) {
     const f = this.flight;
     f.t += dt / f.duration;
-    const t = clamp(f.t, 0, 1);
-    this.ball.x = f.start.x + (f.end.x - f.start.x) * t;
-    this.ball.z = f.start.z + (f.end.z - f.start.z) * t;
-    this.ball.y = f.start.y + (f.end.y - f.start.y) * t + Math.sin(Math.PI * t) * (f.kind === 'shot' ? 2.65 : 1.0);
+    const t=clamp(f.t,0,1);
+    const elapsed=t*f.duration;
+    if(f.kind==='rebound') {
+      this.ball=arcPoint(f.start,f.end,t,.55);
+    } else {
+      const gather=f.kind==='pass'?PASS_GATHER:SHOT_GATHER;
+      const catchTime=f.kind==='pass'?PASS_CATCH:0;
+      const air=f.duration-gather-catchTime;
+      if(elapsed<gather) {
+        f.stage='gather';
+        this.ball=mixPoint(f.start,f.release,blend(elapsed/gather));
+      } else if(elapsed<gather+air) {
+        f.stage='air';
+        if(f.kind==='pass')f.end=receivePoint(this.players[f.to],f.hand);
+        this.ball=arcPoint(f.release,f.end,(elapsed-gather)/air,f.kind==='shot'?2.65:.74);
+      } else if(f.kind==='pass') {
+        f.stage='catch';
+        f.end=receivePoint(this.players[f.to],f.hand);
+        this.ball=mixPoint(f.end,dribblePoint(this.players[f.to],f.hand,0),
+          blend((elapsed-gather-air)/catchTime));
+      } else {
+        f.stage='air';
+        this.ball={...f.end};
+      }
+    }
     if (f.t < 1) return;
     this.flight = null;
     if (f.kind === 'pass') {
@@ -137,11 +206,12 @@ export class BasketballMatch {
       if (dist(recipient, closest) < .7 && this.random() < .15) {
         this.steal(closest.team, closest.id);
       } else {
-        this.owner = recipient;
+        this.owner=recipient;
+        this.ballControl={mode:'dribble',hand:f.hand,phase:0,cooldown:.8};
         this.passes[f.team]++;
-        this.decision = .65 + this.random() * .75;
+        this.decision=.65+this.random()*.75;
         resetIntent(this);
-        this.syncHeldBall();
+        this.ball=dribblePoint(recipient,f.hand,0);
       }
     } else if (f.kind === 'shot') {
       if (this.random() < f.probability) {
@@ -150,27 +220,28 @@ export class BasketballMatch {
         if (f.points === 3) this.threes[f.team]++;
         this.ball = {...f.end};
         this.emit('score', {team: f.team, player: f.from, points: f.points});
-        this.owner = null;
-        if (f.shootingFoul) this.beginFreeThrows(f.from, 1);
-        else {this.pause = 1.5; this.nextTeam = 1 - f.team;}
+        this.owner=null;
+        if(f.shootingFoul)this.beginFreeThrows(f.from,1);
+        else this.prepareInbound(1-f.team,1.5);
       } else {
         this.emit('miss', {team: f.team, player: f.from, points: f.points});
         if (f.shootingFoul) {
           this.beginFreeThrows(f.from, f.points);
           return;
         }
-        this.flight = {kind: 'rebound', team: f.team, from: f.from,
-          start: {...f.end}, end: {x: clamp(f.end.x - this.direction(f.team) * 2.1, -13.3, 13.3),
-            y: .18, z: (this.random() - .5) * 5}, t: 0, duration: .75};
+        this.flight={kind:'rebound',team:f.team,from:f.from,
+          start:{...f.end},end:{x:clamp(f.end.x-this.direction(f.team)*2.1,-13.3,13.3),
+            y:.18,z:(this.random()-.5)*5},t:0,duration:.75};
+        this.ballControl={mode:'rebound'};
       }
     } else {
       const reboundTeam = this.random() < .7 ? 1 - f.team : f.team;
       this.rebounds[reboundTeam]++;
       const near = this.players.filter(p => p.team === reboundTeam).sort((a, b) => dist(a, this.ball) - dist(b, this.ball))[0];
+      const caught={...this.ball};
       this.startPossession(reboundTeam);
-      this.owner = near;
-      this.shotClock = reboundTeam === f.team ? 14 : 24;
-      this.syncHeldBall();
+      this.collectBall(near,caught);
+      this.shotClock=reboundTeam===f.team?14:24;
       this.emit('rebound', {team: reboundTeam, player: near.id});
     }
   }
@@ -194,8 +265,10 @@ export class BasketballMatch {
       this.beginFreeThrows(attackerId, 2);
     } else {
       const retainedClock = Math.max(14, this.shotClock);
-      this.startPossession(offense, true);
-      this.shotClock = retainedClock;
+      const previous={...this.ball};
+      this.startPossession(offense,true);
+      this.collectBall(this.owner,previous,.5);
+      this.shotClock=retainedClock;
       this.emit('inbound', {team: offense, afterFoul: true});
     }
     return true;
@@ -204,12 +277,13 @@ export class BasketballMatch {
     const shooter = this.players[shooterId];
     if (!shooter || !Number.isInteger(attempts) || attempts < 1) return;
     const sign = this.direction(shooter.team);
+    const incoming={...this.ball};
     this.possession = shooter.team;
     this.flight = null;
     this.owner = null;
     this.pause = 0;
     this.freeThrows = {shooter: shooterId, team: shooter.team, total: attempts, remaining: attempts,
-      completed: 0, made: 0, state: 'setup', timer: FT_SETUP_SECONDS, lastMade: false};
+      completed:0,made:0,state:'setup',timer:FT_SETUP_SECONDS,lastMade:false,setupStart:incoming};
     // Arrange shooter at the stripe, teammates and opponents along the lane.
     for (const p of this.players) {
       p.speed = p.vx = p.vz = 0;
@@ -222,7 +296,8 @@ export class BasketballMatch {
         p.z = (slot % 2 ? -1 : 1) * (2.4 + offset + Math.floor(slot / 2) * .8);
       }
     }
-    this.ball = {x: shooter.x + sign * .22, y: 1.75, z: 0};
+    this.ball={...incoming};
+    this.ballControl={mode:'freeThrow',from:shooterId};
     this.emit('freeThrowStart', {team: shooter.team, player: shooterId, attempts});
   }
   updateFreeThrows(dt) {
@@ -232,7 +307,8 @@ export class BasketballMatch {
     const direction = this.direction(ft.team);
     ft.timer -= dt;
     if (ft.state === 'setup') {
-      this.ball = {x: shooter.x + direction * .23, y: 1.65, z: shooter.z};
+      this.ball=mixPoint(ft.setupStart,releasePoint(shooter,'shot'),
+        blend(1-Math.max(0,ft.timer)/FT_SETUP_SECONDS));
       if (ft.timer <= 0) {
         ft.state = 'flight';
         ft.timer = FT_FLIGHT_SECONDS;
@@ -269,25 +345,24 @@ export class BasketballMatch {
       remaining: ft.remaining, made: ft.made,
     });
     if (ft.remaining > 0) {
-      ft.state = 'setup';
-      ft.timer = FT_SETUP_SECONDS;
-      shooter.action = 'idle';
+      ft.state='setup';
+      ft.timer=FT_SETUP_SECONDS;
+      ft.setupStart={...this.ball};
+      shooter.action='idle';
       return;
     }
     this.freeThrows = null;
     if (ft.lastMade) {
-      this.nextTeam = 1 - ft.team;
-      this.owner = null;
-      this.pause = 2;
+      this.prepareInbound(1-ft.team,2);
     } else {
       const reboundTeam = this.random() < .7 ? 1 - ft.team : ft.team;
       this.rebounds[reboundTeam]++;
       const rebounder = this.players.filter(p => p.team === reboundTeam)
         .sort((a, b) => dist(a, this.ball) - dist(b, this.ball))[0];
+      const caught={...this.ball};
       this.startPossession(reboundTeam);
-      this.owner = rebounder;
-      this.shotClock = reboundTeam === ft.team ? 14 : 24;
-      this.syncHeldBall();
+      this.collectBall(rebounder,caught);
+      this.shotClock=reboundTeam===ft.team?14:24;
       this.emit('rebound', {team: reboundTeam, player: rebounder.id, afterFreeThrow: true});
     }
   }
@@ -295,16 +370,18 @@ export class BasketballMatch {
     const losingTeam = 1 - team;
     this.turnovers[losingTeam]++;
     this.steals[team]++;
+    const caught={...this.ball};
     this.startPossession(team);
-    this.owner = this.players[playerId];
-    this.syncHeldBall();
+    this.collectBall(this.players[playerId],caught);
     this.emit('steal', {team, player: playerId});
   }
   violation() {
     const loser = this.possession;
     this.turnovers[loser]++;
-    this.startPossession(1 - loser, true);
-    this.emit('violation', {team: loser});
+    const previous={...this.ball};
+    this.startPossession(1-loser,true);
+    this.collectBall(this.owner,previous,.5);
+    this.emit('violation',{team:loser});
   }
   endQuarter() {
     this.clock = 0;
@@ -319,9 +396,8 @@ export class BasketballMatch {
     this.emit('quarter', {completed: this.quarter});
     this.quarter++;
     this.teamFouls = [0, 0];
-    this.clock = 600;
-    this.pause = 2.3;
-    this.nextTeam = this.quarter % 2 === 0 ? 1 : 0;
+    this.clock=600;
+    this.prepareInbound(this.quarter%2===0?1:0,2.3);
   }
   update(dt) {
     if (this.ended || !Number.isFinite(dt) || dt <= 0) return;
@@ -331,11 +407,16 @@ export class BasketballMatch {
       this.updateFreeThrows(dt);
       return;
     }
-    if (this.pause > 0) {
-      this.pause = Math.max(0, this.pause - dt);
-      if (this.pause === 0) {
-        this.startPossession(this.nextTeam, true);
-        this.emit('inbound', {team: this.possession});
+    if(this.pause>0) {
+      this.pause=Math.max(0,this.pause-dt);
+      if(this.ballReturn) {
+        const r=this.ballReturn;
+        this.ball=mixPoint(r.start,r.end,blend(1-this.pause/r.duration));
+      }
+      if(this.pause===0) {
+        this.startPossession(this.nextTeam,true);
+        this.ballReturn=null;
+        this.emit('inbound',{team:this.possession});
       }
       return;
     }
@@ -347,9 +428,10 @@ export class BasketballMatch {
     if (this.shotClock <= 0) { this.violation(); return; }
     this.movePlayers(dt);
     if (this.flight) { this.updateFlight(dt); return; }
-    this.syncHeldBall();
+    this.syncHeldBall(dt);
     if (!this.owner) return;
     const defender = this.nearestDefender(this.owner);
+    if(this.ballControl?.mode==='secure')return;
     if (dist(defender, this.owner) < 1.55 && this.random() < dt * .12) {
       this.callFoul(defender.id, this.owner.id);
       return;
@@ -394,7 +476,8 @@ export class BasketballMatch {
       passes: [...this.passes], rebounds: [...this.rebounds], steals: [...this.steals], turnovers: [...this.turnovers],
       teamFouls: [...this.teamFouls], playerFouls: [...this.playerFouls],
       ftAttempts: [...this.ftAttempts], ftMakes: [...this.ftMakes],
-      freeThrows: this.freeThrows ? {...this.freeThrows} : null,
+      freeThrows:this.freeThrows?{...this.freeThrows}:null,
+      ball:{...this.ball},ballControl:this.ballControl?{...this.ballControl}:null,
       players: this.players.map(p => ({id: p.id, team: p.team, x: p.x, z: p.z,
         speed: p.speed, action: p.action, intent: p.intent, targetX: p.targetX, targetZ: p.targetZ}))};
   }

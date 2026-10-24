@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { COURT } from './simulation.js';
 import { guardPose } from './guard-pose.js';
 import { runningLegPose } from './leg-gait.js';
+import {BALL_RADIUS,PASS_GATHER,PASS_CATCH,SHOT_GATHER,blend as ease} from './ball-motion.js';
 
 const material = (color, roughness = .8) => new THREE.MeshStandardMaterial({color, roughness, flatShading: true});
 const lineMaterial = new THREE.LineBasicMaterial({color: 0xf9e9c9});
@@ -113,7 +114,10 @@ function createAthlete(player, team) {
     for(let finger=-1;finger<=1;finger++) {
       mesh(wrist,new THREE.CylinderGeometry(.013,.010,.075,5),skin,finger*.031,-.153,.014);
     }
-    arms.push({shoulder:arm, elbow, wrist});
+    const palmPoint=new THREE.Object3D();
+    palmPoint.position.set(0,-.17,.02);
+    wrist.add(palmPoint);
+    arms.push({shoulder:arm, elbow, wrist, palmPoint});
   }
   const plate = document.createElement('canvas');
   plate.width = 128; plate.height = 128;
@@ -124,6 +128,45 @@ function createAthlete(player, team) {
     new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(plate),transparent:true,side:THREE.DoubleSide}),0,1.35,.208);
   group.scale.setScalar(player.height / 1.99);
   return {group, legs, arms, torso, player};
+}
+
+
+// Point fingertips at the ball with a two-link IK solve in torso space.
+// Arm parts remain attached to the skeleton and follow its turning.
+const DOWN=new THREE.Vector3(0,-1,0);
+const IK_UPPER=.245, IK_LOWER=.425;
+function aimPalm(model,armIndex,ball,amount) {
+  if(amount<=0)return;
+  const part=model.arms[armIndex];
+  model.group.updateMatrixWorld(true);
+  const target=model.torso.worldToLocal(new THREE.Vector3(ball.x,ball.y+BALL_RADIUS,ball.z));
+  const start=part.shoulder.position.clone();
+  const direction=target.sub(start);
+  const originalDistance=direction.length();
+  if(originalDistance<.001)return;
+  const distance=THREE.MathUtils.clamp(originalDistance,
+    Math.abs(IK_UPPER-IK_LOWER)+.003,IK_UPPER+IK_LOWER-.003);
+  direction.normalize();
+  const reach=(IK_UPPER**2-IK_LOWER**2+distance**2)/(2*distance);
+  const elbowHeight=Math.sqrt(Math.max(0,IK_UPPER**2-reach**2));
+  const sideways=new THREE.Vector3(armIndex?1:-1,0,.55);
+  sideways.addScaledVector(direction,-sideways.dot(direction));
+  if(sideways.lengthSq()<.001)sideways.set(0,0,1);
+  sideways.normalize();
+  const elbowPoint=start.clone().addScaledVector(direction,reach)
+    .addScaledVector(sideways,elbowHeight);
+  const reachEnd=start.clone().addScaledVector(direction,distance);
+  const upperDirection=elbowPoint.clone().sub(start).normalize();
+  const lowerDirection=reachEnd.sub(elbowPoint).normalize();
+  const upperQuat=new THREE.Quaternion().setFromUnitVectors(DOWN,upperDirection);
+  const lowerGlobalQuat=new THREE.Quaternion().setFromUnitVectors(DOWN,lowerDirection);
+  const lowerRelativeQuat=upperQuat.clone().invert().multiply(lowerGlobalQuat);
+  part.shoulder.quaternion.slerp(upperQuat,amount);
+  part.elbow.quaternion.slerp(lowerRelativeQuat,amount);
+  part.wrist.rotation.x*=1-amount;
+}
+function contactAmount(ball) {
+  return ease((ball.y-.78)/.23);
 }
 
 export class ArenaScene {
@@ -284,9 +327,13 @@ export class ArenaScene {
       model.group.position.set(p.x, 0, p.z);
       // Defense faces the assigned player/ball while shuffling sideways.
       // Offense continues to face its movement direction.
-      const facing = guard?.faceAngle ?? (p.speed > .1 ? Math.atan2(p.vx,p.vz) : model.group.rotation.y);
-      const turn = Math.atan2(Math.sin(facing-model.group.rotation.y),Math.cos(facing-model.group.rotation.y));
-      model.group.rotation.y += turn * (1-Math.exp(-dt*(guard?5.5:6)));
+      if(!guard && p.team===this.match.possession && Number.isFinite(p.heading)) {
+        model.group.rotation.y=p.heading;
+      } else {
+        const facing=guard?.faceAngle ?? (p.speed>.1?Math.atan2(p.vx,p.vz):model.group.rotation.y);
+        const turn=Math.atan2(Math.sin(facing-model.group.rotation.y),Math.cos(facing-model.group.rotation.y));
+        model.group.rotation.y+=turn*(1-Math.exp(-dt*(guard?5.5:6)));
+      }
       const running=Math.min(1,p.speed/3.5);
       const wave=Math.sin(p.phase)*.67*running;
       const crouch=guard?.crouch ?? 0;
@@ -322,10 +369,10 @@ export class ArenaScene {
           ex=target.elbowX;ez=target.elbowZ;wx=target.wristX;
         }else if(isShooting){
           x=-2.55;z=side*.22;ex=-.20;wx=-.1;
-        }else if(p.action==='dribble'&&i===1){
-          x=-.35-.8*Math.abs(Math.sin(this.match.elapsed*10));
-          ex=-.60;
-        }else if(p.action==='pass'){
+        }else if(p.action==='dribble'){
+          const active=this.match.ballControl?.hand===side;
+          x=active?-.65:-.18;ex=active?-.53:-.32;
+        }else if(p.action==='pass'||p.action==='catch'){
           x=-1.18;z=side*.18;ex=-.4;
         }
         arm.shoulder.rotation.x += (x-arm.shoulder.rotation.x)*blend;
@@ -333,6 +380,27 @@ export class ArenaScene {
         arm.elbow.rotation.x += (ex-arm.elbow.rotation.x)*blend;
         arm.elbow.rotation.z += (ez-arm.elbow.rotation.z)*blend;
         arm.wrist.rotation.x += (wx-arm.wrist.rotation.x)*blend;
+      }
+      const flight=this.match.flight,control=this.match.ballControl;
+      const active=this.match.owner===p && control?.mode==='dribble';
+      const securing=this.match.owner===p && control?.mode==='secure';
+      if(active) {
+        aimPalm(model,control.hand===-1?0:1,this.match.ball,contactAmount(this.match.ball));
+      } else if(securing) {
+        for(let i=0;i<2;i++)aimPalm(model,i,this.match.ball,.92);
+      } else if(flight?.from===p.id && flight.stage==='gather') {
+        const gather=flight.kind==='pass'?PASS_GATHER:SHOT_GATHER;
+        const progress=ease((flight.t*flight.duration)/gather);
+        for(let i=0;i<2;i++)aimPalm(model,i,this.match.ball,.55+progress*.45);
+      } else if(flight?.kind==='pass' && flight.to===p.id) {
+        const remaining=flight.duration*(1-flight.t);
+        if(flight.stage==='catch'||remaining<PASS_CATCH+.22) {
+          const approach=Math.max(0,remaining-PASS_CATCH);
+          const reach=flight.stage==='catch'?1:ease(1-approach/.22);
+          for(let i=0;i<2;i++)aimPalm(model,i,this.match.ball,reach);
+        }
+      } else if(this.match.freeThrows?.shooter===p.id && this.match.freeThrows.state==='setup') {
+        for(let i=0;i<2;i++)aimPalm(model,i,this.match.ball,.93);
       }
     }
     const b=this.match.ball;
