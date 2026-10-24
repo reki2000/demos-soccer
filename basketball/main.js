@@ -175,6 +175,7 @@ function updateUI() {
   $('away-possession').textContent = 100 - pct + '%';
   $('possession-fill').style.width = pct + '%';
   const p = match.freeThrows ? match.players[match.freeThrows.shooter] : match.owner;
+  document.querySelector('.mini-label').textContent = match.freeThrows ? 'AT THE LINE' : 'ON THE BALL';
   $('player-card').hidden = !p;
   if (p) {
     $('player-number').textContent = p.number;
