@@ -46,6 +46,7 @@ export class BasketballMatch {
     this.elapsed = 0;
     this.possessionAge = 0;
     this.pause = 0;
+    this.ballReturn = null;
     this.ended = false;
     this.flight = null;
     this.owner = null;
@@ -111,11 +112,20 @@ export class BasketballMatch {
     this.ball=dribblePoint(this.owner,c.hand,c.phase);
     this.owner.action='dribble';
   }
-  collectBall(player,from=this.ball) {
+  collectBall(player,from=this.ball,duration=.20) {
     this.owner=player;
     const hand=controllingHand(this,player);
-    this.ballControl={mode:'secure',from:{...from},hand,phase:0,elapsed:0,duration:.20};
+    this.ballControl={mode:'secure',from:{...from},hand,phase:0,elapsed:0,duration};
     this.ball={...from};
+  }
+  prepareInbound(team,duration) {
+    this.nextTeam=team;
+    this.pause=duration;
+    const dir=this.direction(team);
+    const spawn={x:-dir*8.4,z:0,heading:dir>0?Math.PI/2:-Math.PI/2};
+    this.ballReturn={start:{...this.ball},end:dribblePoint(spawn,1,0),duration};
+    this.ballControl={mode:'inbound'};
+    this.owner=null;
   }
   nearestDefender(player) {
     return this.players.filter(p => p.team !== player.team).reduce((a, b) => dist(player, a) < dist(player, b) ? a : b);
@@ -210,9 +220,9 @@ export class BasketballMatch {
         if (f.points === 3) this.threes[f.team]++;
         this.ball = {...f.end};
         this.emit('score', {team: f.team, player: f.from, points: f.points});
-        this.owner = null;
-        if (f.shootingFoul) this.beginFreeThrows(f.from, 1);
-        else {this.pause = 1.5; this.nextTeam = 1 - f.team;}
+        this.owner=null;
+        if(f.shootingFoul)this.beginFreeThrows(f.from,1);
+        else this.prepareInbound(1-f.team,1.5);
       } else {
         this.emit('miss', {team: f.team, player: f.from, points: f.points});
         if (f.shootingFoul) {
@@ -255,8 +265,10 @@ export class BasketballMatch {
       this.beginFreeThrows(attackerId, 2);
     } else {
       const retainedClock = Math.max(14, this.shotClock);
-      this.startPossession(offense, true);
-      this.shotClock = retainedClock;
+      const previous={...this.ball};
+      this.startPossession(offense,true);
+      this.collectBall(this.owner,previous,.5);
+      this.shotClock=retainedClock;
       this.emit('inbound', {team: offense, afterFoul: true});
     }
     return true;
@@ -341,9 +353,7 @@ export class BasketballMatch {
     }
     this.freeThrows = null;
     if (ft.lastMade) {
-      this.nextTeam = 1 - ft.team;
-      this.owner = null;
-      this.pause = 2;
+      this.prepareInbound(1-ft.team,2);
     } else {
       const reboundTeam = this.random() < .7 ? 1 - ft.team : ft.team;
       this.rebounds[reboundTeam]++;
@@ -368,8 +378,10 @@ export class BasketballMatch {
   violation() {
     const loser = this.possession;
     this.turnovers[loser]++;
-    this.startPossession(1 - loser, true);
-    this.emit('violation', {team: loser});
+    const previous={...this.ball};
+    this.startPossession(1-loser,true);
+    this.collectBall(this.owner,previous,.5);
+    this.emit('violation',{team:loser});
   }
   endQuarter() {
     this.clock = 0;
@@ -384,9 +396,8 @@ export class BasketballMatch {
     this.emit('quarter', {completed: this.quarter});
     this.quarter++;
     this.teamFouls = [0, 0];
-    this.clock = 600;
-    this.pause = 2.3;
-    this.nextTeam = this.quarter % 2 === 0 ? 1 : 0;
+    this.clock=600;
+    this.prepareInbound(this.quarter%2===0?1:0,2.3);
   }
   update(dt) {
     if (this.ended || !Number.isFinite(dt) || dt <= 0) return;
@@ -396,11 +407,16 @@ export class BasketballMatch {
       this.updateFreeThrows(dt);
       return;
     }
-    if (this.pause > 0) {
-      this.pause = Math.max(0, this.pause - dt);
-      if (this.pause === 0) {
-        this.startPossession(this.nextTeam, true);
-        this.emit('inbound', {team: this.possession});
+    if(this.pause>0) {
+      this.pause=Math.max(0,this.pause-dt);
+      if(this.ballReturn) {
+        const r=this.ballReturn;
+        this.ball=mixPoint(r.start,r.end,blend(1-this.pause/r.duration));
+      }
+      if(this.pause===0) {
+        this.startPossession(this.nextTeam,true);
+        this.ballReturn=null;
+        this.emit('inbound',{team:this.possession});
       }
       return;
     }
