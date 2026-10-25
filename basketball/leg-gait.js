@@ -25,14 +25,14 @@ export function runningLegPose(phase, speed, isGuard, side, spread = 0) {
   const cycle = (((phase + (side > 0 ? Math.PI : 0)) % TAU) + TAU) % TAU / TAU;
   const stance = cycle < .60;
   const progress = stance ? cycle / .60 : (cycle - .60) / .40;
-  const stride = (isGuard ? .095 : .16) * pace;
+  const stride = (isGuard ? .10 : .265) * pace;
 
   // While planted, the foot moves backwards relative to the hips.
   // During recovery, the knee flexes and the ankle lifts over the floor.
   const z = stance
     ? stride * (1 - 2 * progress)
     : stride * (-1 + 2 * smooth(progress));
-  const lift = !stance ? .245 * pace * Math.sin(Math.PI * progress) : 0;
+  const lift = !stance ? (isGuard ? .22 : .34) * pace * Math.sin(Math.PI * progress) : 0;
   const footY = -(.867 - (isGuard ? .024 : 0)) + lift;
   const angles = solveLeg(z, footY);
 
