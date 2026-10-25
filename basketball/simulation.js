@@ -541,9 +541,10 @@ export class BasketballMatch {
     const openLook = range < 8.5 && gap > 1.75;
     const inclination = this.settings.style === 'perimeter' ? .59 : .47;
     const mature = this.possessionAge > 4.0;
-    const shouldShoot = urgency || range < 3.2
+    const keepDriving=carrier.plan==='drive'&&range>1.55&&range<3.5&&gap>1.45&&!urgency;
+    const shouldShoot = !keepDriving&&(urgency || range < 1.85
       || (mature && range < 9 && this.random() <
-        (openLook ? inclination + .25 : inclination * .6));
+        (openLook ? inclination + .25 : inclination * .6)));
     if (shouldShoot) {
       this.shoot();
     } else if (range > 4.0 && gap > 1.5 && this.shotClock > 8
@@ -553,8 +554,8 @@ export class BasketballMatch {
       carrier.plan = 'drive';
       carrier.intent = 'drive';
       const sign = this.direction(carrier.team);
-      carrier.targetX = sign * (COURT.basketX - Math.max(2.7, range - 3.2));
-      carrier.targetZ = clamp(carrier.z * .6 + carrier.variation * 1.3, -3.2, 3.2);
+      carrier.targetX = sign * (COURT.basketX - Math.max(.78,range-3.5));
+      carrier.targetZ = clamp(carrier.z*.45+carrier.variation*.65,-1.5,1.5);
       carrier.thinkIn = 1.5;
       this.decision = 1.1 + this.random() * .75;
     } else {
