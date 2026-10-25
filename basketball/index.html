@@ -18,7 +18,7 @@
   <div class="workspace">
     <section class="match-panel" aria-label="3D試合中継">
       <div class="panel-bar"><div class="broadcast-title"><i class="live-dot"></i><b id="live-label">LIVE GAME</b><span>/</span> COURTSIDE ARENA</div>
-        <div class="panel-actions"><button id="crowd-toggle" class="sound-toggle" aria-label="観客音を切り替える" aria-pressed="false">観客音 OFF</button><button id="voice-toggle" class="sound-toggle" aria-label="実況読み上げを切り替える" aria-pressed="false">実況音声 OFF</button><button id="fullscreen" class="flat-button" aria-label="全画面表示" title="全画面表示">⛶</button></div>
+        <div class="panel-actions"><button id="audio-enable" class="sound-toggle sound-start" aria-label="観客音と実況音声を開始">♪ 音声を開始</button><button id="crowd-toggle" class="sound-toggle" aria-label="観客音を切り替える" aria-pressed="false">観客音 OFF</button><button id="voice-toggle" class="sound-toggle" aria-label="実況読み上げを切り替える" aria-pressed="false">実況音声 OFF</button><button id="fullscreen" class="flat-button" aria-label="全画面表示" title="全画面表示">⛶</button></div>
       </div>
       <div class="viewport" id="viewport">
         <div class="scoreboard" aria-label="スコア">
@@ -36,8 +36,9 @@
           <button data-camera="follow">FOLLOW <small>追従</small></button>
           <button data-camera="tactical">TACTICAL <small>俯瞰</small></button>
           <button data-camera="free">FREE <small>自由</small></button>
-        </div><p id="camera-help">コート全体を捉えた中継アングル。</p></div><div class="camera-mark"><i></i><span id="camera-label">BROADCAST CAMERA</span></div>
+        </div><p id="camera-help">コート全体を捉えた中継アングル。</p><button id="audio-enable-inview" class="sound-toggle inview-audio">♪ 音声を開始</button></div><div class="camera-mark"><i></i><span id="camera-label">BROADCAST CAMERA</span></div>
         <div class="commentary" id="commentary">ティップオフを待っています。</div>
+        <div id="audio-status" class="audio-status" role="status" aria-live="polite">音声はOFFです。上の「音声を開始」を押してください。</div>
         <div id="loading" class="loading">アリーナを準備しています…</div>
       </div>
       <div class="playback">
