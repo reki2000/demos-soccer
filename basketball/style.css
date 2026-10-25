@@ -174,3 +174,18 @@ footer{border-top:1px solid #394853;margin-top:30px;padding-top:18px;display:fle
  .viewport .arena-controls .sound-toggle{font-size:8px;padding:4px 1px}
  .viewport .audio-status{max-width:50%;bottom:31px;font-size:8px}
 }
+/* Large center-court score flash, following the soccer goal treatment. */
+.event-toast.score-event{z-index:9;min-width:min(480px,78vw);max-width:84vw;
+  padding:24px 36px;background:#122a3de9;border-top:4px solid #ebc579;
+  box-shadow:0 8px 50px #000b;animation:arena-score-flash .55s ease-out}
+.event-toast.score-event strong{font-size:clamp(35px,6vw,76px);line-height:1.05;
+  color:#fff0ba;letter-spacing:3px;text-shadow:0 4px 16px #0007}
+#event-big-score{font-family:'Barlow Condensed',sans-serif;
+  font-weight:900;font-size:clamp(44px,8vw,96px);line-height:1.08;letter-spacing:5px;color:#fcebc0}
+#event-big-score[hidden]{display:none}
+.event-toast.score-event #event-subtitle{font-size:clamp(11px,1.5vw,17px);color:#f8ebcb}
+@keyframes arena-score-flash{
+  from{filter:brightness(1.8);transform:translate(-50%,-50%) scale(1.2)}
+  to{filter:brightness(1);transform:translate(-50%,-50%) scale(1)}
+}
+@media(max-width:600px){.event-toast.score-event{min-width:75vw;padding:15px 12px}}

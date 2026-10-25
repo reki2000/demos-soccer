@@ -1,12 +1,14 @@
 import { BasketballMatch, SQUADS, COURT } from './simulation.js';
 import { ArenaScene } from './scene.js';
 import { ArenaAudio } from './audio.js';
+import {createBasketballCommentary} from './commentary.js';
 
 const $ = id => document.getElementById(id);
 let squads = [SQUADS[0], SQUADS[1]];
 let playing = true, speed = 1, scene = null, last = performance.now(), statsElapsed = 0, toastTimer;
 let match;
 const arenaAudio=new ArenaAudio();
+const describePlay=createBasketballCommentary();
 const captions = {
   pass: 'パスがつながる。オフェンスが展開する。',
   shot: 'リングへ放った！ シュートの行方は…',
@@ -25,7 +27,8 @@ const captions = {
 };
 function displayEvent(type, info) {
   const major = ['score','quarter','fulltime','violation','foul','freeThrowStart','freeThrowMade','freeThrowMissed'].includes(type);
-  const title = type === 'score' ? (info.points === 3 ? 'THREE POINTS!' : 'TWO POINTS!')
+  const title=type==='score'?(info.dunk?'SLAM DUNK!':info.points===3?'THREE POINTS!':'TWO POINTS!')
+    : type === 'dunk' ? 'DUNK ATTEMPT'
     : type === 'fulltime' ? 'FULL TIME'
     : type === 'quarter' ? 'END OF Q' + info.completed
     : type === 'foul' ? 'PERSONAL FOUL'
@@ -36,7 +39,8 @@ function displayEvent(type, info) {
     : type === 'violation' ? 'SHOT CLOCK'
     : type === 'steal' ? 'STEAL!' : type === 'rebound' ? 'REBOUND' : type === 'shot' ? 'SHOT ATTEMPT'
     : type === 'pass' ? 'PASS' : 'PLAY ON';
-  let description = captions[type] || '';
+  const narration=describePlay(type,info,match,squads)||captions[type]||'';
+  let description=narration;
   if (type === 'score') {
     const player = match.players[info.player];
     description = squads[info.team].code + ' · #' + player.number + ' ' + squads[info.team].names[player.slot] +
@@ -54,16 +58,20 @@ function displayEvent(type, info) {
     description = squads[info.team].code + ' · ' + info.attempt + '/' + info.total +
       ' · ' + match.score.join(' : ');
   }
-  $('commentary').textContent = description;
-  arenaAudio.onEvent(type,info,squads);
+  $('commentary').textContent=narration;
+  arenaAudio.onEvent(type,{...info,commentary:narration},squads);
   if (type === 'pass' || type === 'shot' || type === 'rebound') return;
   $('event-title').textContent = title;
   $('event-subtitle').textContent = description;
   const toast = $('event-toast');
-  toast.classList.toggle('major', major);
+  toast.classList.toggle('major',major);
+  toast.classList.toggle('score-event',type==='score'||type==='freeThrowMade');
+  const large=$('event-big-score');
+  large.hidden=!(type==='score'||type==='freeThrowMade');
+  if(!large.hidden)large.textContent=match.score.join('  :  ');
   toast.classList.add('visible');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toast.classList.remove('visible'), major ? 2000 : 1100);
+  toastTimer=setTimeout(()=>toast.classList.remove('visible'),type==='score'?2800:major?2000:1100);
 }
 match = new BasketballMatch(displayEvent);
 

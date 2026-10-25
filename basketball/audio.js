@@ -1,6 +1,6 @@
 // Browser-only arena sound. Browsers require a user gesture before playback.
 export const ANNOUNCE_TYPES = new Set([
-  'shot','score','miss','rebound','steal','foul','freeThrowStart',
+  'shot','dunk','score','miss','rebound','steal','foul','freeThrowStart',
   'freeThrowAttempt','freeThrowMade','freeThrowMissed','quarter','violation','fulltime',
 ]);
 
@@ -8,6 +8,7 @@ export function commentaryLine(type, details={}, teams=[]) {
   const code=n=>teams[n]?.code??(n===0?'ホーム':'アウェー');
   switch(type) {
     case 'shot':return code(details.team)+'がシュート！';
+    case 'dunk':return code(details.team)+'、ダンクを狙います！';
     case 'score':return code(details.team)+'、'+(details.points===3?'スリーポイント':'ツーポイント')+'成功！';
     case 'miss':return 'シュートは外れました。リバウンドの争いです。';
     case 'rebound':return code(details.team)+'がリバウンドを確保！';
@@ -26,7 +27,7 @@ export function commentaryLine(type, details={}, teams=[]) {
 
 export function crowdReaction(type) {
   if(['score','freeThrowMade'].includes(type))return 1;
-  if(['shot','steal','rebound'].includes(type))return .55;
+  if(['shot','dunk','steal','rebound'].includes(type))return .55;
   if(['foul','violation','freeThrowMissed'].includes(type))return .25;
   return 0;
 }
@@ -44,6 +45,8 @@ export class ArenaAudio {
     this.speechToken=0;
     this.lastSpoken=0;
     this.speed=1;
+    this.speechRate=1.43;
+    this.voicePreference='default';
     this.onStatus=()=>{};
     this.motionClock=0;
     this.lastBouncePhase=null;
@@ -182,12 +185,18 @@ export class ArenaAudio {
     try {
       const speech=new this.env.SpeechSynthesisUtterance(text);
       speech.lang='ja-JP';
-      speech.rate=1.43; // Faster, short-form sports commentary.
+      speech.rate=this.speechRate;
       speech.pitch=1;
       speech.volume=1;
       const voices=synth?.getVoices?.()??[];
-      const japanese=voices.find(voice=>voice.lang?.toLowerCase().startsWith('ja'));
-      if(japanese)speech.voice=japanese;
+      const japanese=voices.filter(voice=>voice.lang?.toLowerCase().startsWith('ja'));
+      const maleName=/male|keita|takumi|ichiro|otoya|kenji|masaru|hiroshi|daichi|naoki/i;
+      const preferred=this.voicePreference==='male'?
+        japanese.find(voice=>maleName.test(voice.name||'')):null;
+      if(preferred||japanese[0])speech.voice=preferred||japanese[0];
+      // Voice gender is platform-defined. Where no male Japanese voice is
+      // installed, use an available Japanese voice rather than going silent.
+      speech.pitch=this.voicePreference==='male'?.88:1;
       speech.onstart=()=>{
         if(token===this.speechToken)this.status('voice','日本語実況を再生中','on');
       };
@@ -351,7 +360,7 @@ export class ArenaAudio {
     const urgent=['score','fulltime'].includes(type);
     if(this.speed>1&&!['score','fulltime','foul'].includes(type))return;
     if(now-this.lastSpoken<1300&&!urgent)return;
-    const line=commentaryLine(type,details,teams);
+    const line=details?.commentary||commentaryLine(type,details,teams);
     if(!line)return;
     if(this.speak(line,urgent))this.lastSpoken=now;
   }

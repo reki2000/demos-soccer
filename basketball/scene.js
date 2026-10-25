@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { COURT } from './simulation.js';
 import { guardPose } from './guard-pose.js';
+import {defenseAnimationState} from './defensive-motion.js';
+import {shadowAppearance} from './shadows.js';
 import { runningLegPose } from './leg-gait.js';
 import {jumpHeight,runningBodyPose} from './athletic-motion.js';
 import {makeSidelines} from './sideline.js';
@@ -75,8 +77,11 @@ function createAthlete(player, team) {
   const hair = material([0x1b2026, 0x3b2d22, 0x775139][player.id % 3]);
   const shoe = material(player.slot % 2 ? 0xf3f0e6 : 0x27394b);
   group.add(torso);
-  mesh(torso, new THREE.CylinderGeometry(.22,.18,.54,8), main, 0, 1.32, 0);
-  mesh(torso, new THREE.CylinderGeometry(.19,.18,.16,8), trim, 0, 1.01, 0);
+  // Slightly wider left/right and flatter front/back, like a jersey torso.
+  mesh(torso,new THREE.CylinderGeometry(.22,.18,.54,8),main,0,1.32,0)
+    .scale.set(1.12,1,.84);
+  mesh(torso,new THREE.CylinderGeometry(.19,.18,.16,8),trim,0,1.01,0)
+    .scale.set(1.10,1,.86);
   mesh(torso, new THREE.CylinderGeometry(.065,.07,.13,8), skin, 0, 1.68, 0);
   const head = mesh(torso, new THREE.IcosahedronGeometry(.145,1), skin, 0, 1.82, 0);
   head.scale.set(.9, 1.1, .93);
@@ -99,7 +104,7 @@ function createAthlete(player, team) {
     mesh(ankle, new THREE.BoxGeometry(.14,.11,.26), shoe, 0,-.055,.07);
     legs.push({hip:thigh, knee, ankle});
     const arm = new THREE.Group();
-    arm.position.set(side * .235,1.53,0);
+    arm.position.set(side * .248,1.53,0);
     torso.add(arm);
     mesh(arm,new THREE.CylinderGeometry(.08,.069,.14,7),main,0,-.048,0);
     mesh(arm,new THREE.CylinderGeometry(.061,.052,.14,7),skin,0,-.17,0);
@@ -126,8 +131,11 @@ function createAthlete(player, team) {
   const ctx = plate.getContext('2d');
   ctx.fillStyle = '#fff6e6';ctx.textAlign='center';ctx.font='bold 75px Arial';
   ctx.fillText(String(player.number),64,89);
-  mesh(torso,new THREE.PlaneGeometry(.32,.32),
-    new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(plate),transparent:true,side:THREE.DoubleSide}),0,1.35,.208);
+  // Number faces backward (-local Z). It no longer appears on the chest.
+  const number=mesh(torso,new THREE.PlaneGeometry(.32,.32),
+    new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(plate),
+      transparent:true,side:THREE.DoubleSide,depthWrite:false}),0,1.35,-.190);
+  number.rotation.y=Math.PI;
   group.scale.setScalar(player.height / 1.99);
   return {group, legs, arms, torso, player};
 }
@@ -173,6 +181,33 @@ function contactAmount(ball) {
   return ease((ball.y-.78)/.23);
 }
 
+// Alpha-textured discs give soft visible contact shadows even on GPUs with
+// limited real-time shadow resolution. Geometry is shared across ten players.
+function shadowTexture() {
+  const canvas=document.createElement('canvas');canvas.width=128;canvas.height=128;
+  const ctx=canvas.getContext('2d');
+  const gradient=ctx.createRadialGradient(64,64,3,64,64,63);
+  gradient.addColorStop(0,'rgba(9,18,25,.78)');
+  gradient.addColorStop(.28,'rgba(9,18,25,.60)');
+  gradient.addColorStop(.67,'rgba(9,18,25,.25)');
+  gradient.addColorStop(1,'rgba(9,18,25,0)');
+  ctx.fillStyle=gradient;ctx.fillRect(0,0,128,128);
+  return new THREE.CanvasTexture(canvas);
+}
+function contactShadow(parent,texture,size) {
+  const material=new THREE.MeshBasicMaterial({
+    map:texture,transparent:true,opacity:.32,depthWrite:false,
+    polygonOffset:true,polygonOffsetFactor:-1,side:THREE.DoubleSide
+  });
+  const circle=new THREE.Mesh(new THREE.PlaneGeometry(1,1),material);
+  circle.rotation.x=-Math.PI/2;
+  circle.position.y=-.041;
+  circle.scale.set(size,size,1);
+  circle.renderOrder=2;
+  parent.add(circle);
+  return circle;
+}
+
 export class ArenaScene {
   constructor(container, match, squads) {
     this.container = container;
@@ -213,6 +248,9 @@ export class ArenaScene {
     this.makeCourt();
     this.makeArena();
     this.sideline=makeSidelines(this.world,THREE,this.squads);
+    this.shadowTexture=shadowTexture();
+    this.shadows=[];
+    this.ballShadow=contactShadow(this.scene,this.shadowTexture,.49);
     this.playersGroup = new THREE.Group();
     this.scene.add(this.playersGroup);
     this.models = [];
@@ -313,6 +351,8 @@ export class ArenaScene {
       model.group.traverse(node => {node.geometry?.dispose();if(node.material){node.material.map?.dispose();node.material.dispose();}});
       model.group.removeFromParent();
     }
+    this.shadows.forEach(shadow=>{shadow.material.dispose();shadow.removeFromParent();});
+    this.shadows=this.match.players.map(()=>contactShadow(this.scene,this.shadowTexture,.78));
     this.models = this.match.players.map(p => {
       const model = createAthlete(p,this.squads[p.team]);
       this.playersGroup.add(model.group);
@@ -332,15 +372,23 @@ export class ArenaScene {
   update(dt) {
     for (const model of this.models) {
       const p = model.player;
-      const guard = guardPose(this.match, p);
-      const sprinting=!!guard && p.speed<1.65;
+      const motion=defenseAnimationState(this.match,p,guardPose(this.match,p));
+      const guard=motion.guard;
+      const sprinting=!!guard;
       const body=runningBodyPose(p.phase,p.speed,sprinting);
       const jumping=jumpHeight(p);
       model.group.position.set(p.x,body.bounce+jumping,p.z);
+      const floorShadow=this.shadows[p.id];
+      const shadow=shadowAppearance(body.bounce+jumping,.84);
+      floorShadow.position.set(p.x,-.038,p.z);
+      floorShadow.scale.set(shadow.radius,shadow.radius,1);
+      floorShadow.material.opacity=shadow.opacity;
       // Defense faces the assigned player/ball while shuffling sideways.
       // Offense continues to face its movement direction.
-      if(!guard && p.team===this.match.possession && Number.isFinite(p.heading)) {
-        model.group.rotation.y=p.heading;
+      if((!guard && p.team===this.match.possession && Number.isFinite(p.heading)) || motion.runFacing) {
+        const facing=motion.runFacing?Math.atan2(p.vx,p.vz):p.heading;
+        const turn=Math.atan2(Math.sin(facing-model.group.rotation.y),Math.cos(facing-model.group.rotation.y));
+        model.group.rotation.y+=turn*(1-Math.exp(-dt*24));
       } else {
         const facing=guard?.faceAngle ?? (p.speed>.1?Math.atan2(p.vx,p.vz):model.group.rotation.y);
         const turn=Math.atan2(Math.sin(facing-model.group.rotation.y),Math.cos(facing-model.group.rotation.y));
@@ -378,7 +426,9 @@ export class ArenaScene {
         const side=i?1:-1;
         const arm=model.arms[i];
         let x=(i?wave:-wave)*.65, z=side*.08, ex=-.15, ez=0, wx=-.12;
-        if(guard){
+        if(p.jump?.type==='dunk'){
+          x=-2.7;z=side*.18;ex=-.05;wx=0;
+        }else if(guard){
           const target=guard.arms[i];
           x=target.shoulderX;z=target.shoulderZ;
           ex=target.elbowX;ez=target.elbowZ;wx=target.wristX;
@@ -421,6 +471,10 @@ export class ArenaScene {
     this.sideline.update(this.match,dt);
     const b=this.match.ball;
     this.ball.position.set(b.x,b.y,b.z);
+    const ballShade=shadowAppearance(b.y,.54);
+    this.ballShadow.position.set(b.x,-.034,b.z);
+    this.ballShadow.material.opacity=ballShade.opacity;
+    this.ballShadow.scale.set(ballShade.radius,ballShade.radius,1);
     this.ball.rotation.z+=dt*3;
     this.ball.rotation.x+=dt*1.4;
     this.halo.visible=!!this.match.owner;
