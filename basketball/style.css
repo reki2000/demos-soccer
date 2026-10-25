@@ -143,3 +143,9 @@ footer{border-top:1px solid #394853;margin-top:30px;padding-top:18px;display:fle
  .viewport .overlay-camera #camera-help{font-size:8px}
  .viewport:fullscreen .overlay-camera{top:92px;right:8px}
 }
+
+.panel-actions{display:flex;align-items:center;gap:6px}
+.sound-toggle{background:#29424b;border:1px solid #617c84;color:#d2e5de;
+  padding:7px 9px;font-size:10px;letter-spacing:.3px;border-radius:3px;white-space:nowrap}
+.sound-toggle[aria-pressed="true"]{border-color:#b5e5c1;color:#c7f4cf;background:#365c53}
+@media(max-width:740px){.sound-toggle{font-size:9px;padding:5px 6px}.panel-actions{gap:3px}}
