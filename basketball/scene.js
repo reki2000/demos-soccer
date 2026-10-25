@@ -3,6 +3,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { COURT } from './simulation.js';
 import { guardPose } from './guard-pose.js';
 import { runningLegPose } from './leg-gait.js';
+import {jumpHeight,runningBodyPose} from './athletic-motion.js';
+import {makeSidelines} from './sideline.js';
 import {BALL_RADIUS,PASS_GATHER,PASS_CATCH,SHOT_GATHER,blend as ease} from './ball-motion.js';
 
 const material = (color, roughness = .8) => new THREE.MeshStandardMaterial({color, roughness, flatShading: true});
@@ -84,15 +86,15 @@ function createAthlete(player, team) {
     const thigh = new THREE.Group();
     thigh.position.set(side * .105,.99,0);
     group.add(thigh);
-    mesh(thigh, new THREE.CylinderGeometry(.088,.072,.44,7), skin, 0,-.22,0);
+    mesh(thigh, new THREE.CylinderGeometry(.088,.072,.46,7), skin, 0,-.22,0);
     mesh(thigh, new THREE.CylinderGeometry(.103,.088,.21,7), trim, 0,-.055,0);
     const knee = new THREE.Group();
-    knee.position.y = -.45;
+    knee.position.y = -.47;
     thigh.add(knee);
     mesh(knee, new THREE.IcosahedronGeometry(.078,1), skin, 0,0,0);
-    mesh(knee, new THREE.CylinderGeometry(.063,.053,.42,7), skin, 0,-.215,0);
+    mesh(knee, new THREE.CylinderGeometry(.063,.053,.45,7), skin, 0,-.215,0);
     const ankle = new THREE.Group();
-    ankle.position.y = -.43;
+    ankle.position.y = -.46;
     knee.add(ankle);
     mesh(ankle, new THREE.BoxGeometry(.14,.11,.26), shoe, 0,-.055,.07);
     legs.push({hip:thigh, knee, ankle});
@@ -149,7 +151,9 @@ function aimPalm(model,armIndex,ball,amount) {
   direction.normalize();
   const reach=(IK_UPPER**2-IK_LOWER**2+distance**2)/(2*distance);
   const elbowHeight=Math.sqrt(Math.max(0,IK_UPPER**2-reach**2));
-  const sideways=new THREE.Vector3(armIndex?1:-1,0,.55);
+  // Bending the elbow downward/backward keeps the dribbling elbow below
+  // the shoulder instead of forming an outward-pointing chicken wing.
+  const sideways=new THREE.Vector3(armIndex?.12:-.12,-1,-.42);
   sideways.addScaledVector(direction,-sideways.dot(direction));
   if(sideways.lengthSq()<.001)sideways.set(0,0,1);
   sideways.normalize();
@@ -208,6 +212,7 @@ export class ArenaScene {
     this.scene.add(this.world);
     this.makeCourt();
     this.makeArena();
+    this.sideline=makeSidelines(this.world,THREE,this.squads);
     this.playersGroup = new THREE.Group();
     this.scene.add(this.playersGroup);
     this.models = [];
@@ -278,7 +283,7 @@ export class ArenaScene {
   makeArena() {
     for(const side of [-1,1]){
       for(let row=0;row<7;row++){
-        const z=side*(9.1+row*1.25);
+        const z=side*((side>0?11.25:9.1)+row*1.25);
         cuboid(this.world,[35,.5,1.35],row%2?0x263346:0x36445a,[0,.45+row*.57,z]);
       }
       for(let row=0;row<3;row++){
@@ -292,7 +297,7 @@ export class ArenaScene {
       const side = i%2 ? 1 : -1, row = Math.floor(i/50)%7, seat = Math.floor(i/2)%25;
       const color = new THREE.Color([0x8bacc1,0xc2b69a,0xbd7873,0x748b80,0x617184][(i*7+row)%5]);
       spectator.setColorAt(i,color);
-      dummy.position.set(-15+seat*1.25,.95+row*.58,side*(9.1+row*1.25));
+      dummy.position.set(-15+seat*1.25,.95+row*.58,side*((side>0?11.25:9.1)+row*1.25));
       dummy.scale.set(.72,1.4,.88);
       dummy.updateMatrix();spectator.setMatrixAt(i,dummy.matrix);
     }
@@ -314,7 +319,11 @@ export class ArenaScene {
       return model;
     });
   }
-  setSquads(squads) {this.squads=squads;this.makePlayers();}
+  setSquads(squads) {
+    this.squads=squads;this.makePlayers();
+    this.sideline.group.removeFromParent();
+    this.sideline=makeSidelines(this.world,THREE,this.squads);
+  }
   setCamera(mode) {
     this.mode=mode;
     this.controls.enabled=mode==='free';
@@ -324,7 +333,10 @@ export class ArenaScene {
     for (const model of this.models) {
       const p = model.player;
       const guard = guardPose(this.match, p);
-      model.group.position.set(p.x, 0, p.z);
+      const sprinting=!!guard && p.speed<1.65;
+      const body=runningBodyPose(p.phase,p.speed,sprinting);
+      const jumping=jumpHeight(p);
+      model.group.position.set(p.x,body.bounce+jumping,p.z);
       // Defense faces the assigned player/ball while shuffling sideways.
       // Offense continues to face its movement direction.
       if(!guard && p.team===this.match.possession && Number.isFinite(p.heading)) {
@@ -342,22 +354,25 @@ export class ArenaScene {
       const legBlend=1-Math.exp(-Math.min(dt,.08)*12);
       for(let i=0;i<2;i++){
         const side=i?1:-1;
-        const pose=runningLegPose(p.phase,p.speed,!!guard,side,guard?.footSpread ?? 0);
+        const pose=runningLegPose(p.phase,p.speed,sprinting,side,guard?.footSpread ?? 0);
         const leg=model.legs[i];
-        leg.hip.rotation.x += (pose.hipX-leg.hip.rotation.x)*legBlend;
+        const inAir=jumping>.03;
+        const hipTarget=pose.hipX+(inAir ? (i===0?.20:-.16):0);
+        const kneeTarget=pose.kneeX+(inAir?.36:0);
+        leg.hip.rotation.x += (hipTarget-leg.hip.rotation.x)*legBlend;
         leg.hip.rotation.z += (pose.hipZ-leg.hip.rotation.z)*legBlend;
-        leg.knee.rotation.x += (pose.kneeX-leg.knee.rotation.x)*legBlend;
+        leg.knee.rotation.x += (kneeTarget-leg.knee.rotation.x)*legBlend;
         leg.ankle.rotation.x += (pose.ankleX-leg.ankle.rotation.x)*legBlend;
       }
       const ft=this.match.freeThrows;
       const isFreeThrow=ft?.shooter===p.id && ft.state==='flight';
       const isShooting=p.action==='shoot';
       const shotProgress=isFreeThrow ? 1-ft.timer/1.65 : 1-p.actionTime/.8;
-      const hop=isShooting ? (isFreeThrow?.06:.24)*
+      const hop=isShooting && isFreeThrow ? .025*
         Math.sin(Math.PI*Math.max(0,Math.min(1,shotProgress))) : 0;
       const naturalBounce=.025*Math.abs(Math.sin(p.phase))*running;
-      model.torso.position.y = (guard ? -crouch*.6 : naturalBounce) + hop;
-      model.torso.rotation.x=guard ? .10 : 0;
+      model.torso.position.y=(guard?-crouch*.5:naturalBounce*.30)+hop;
+      model.torso.rotation.x=guard?.10:body.lean;
       const blend=1-Math.exp(-dt*11);
       for(let i=0;i<2;i++){
         const side=i?1:-1;
@@ -403,6 +418,7 @@ export class ArenaScene {
         for(let i=0;i<2;i++)aimPalm(model,i,this.match.ball,.93);
       }
     }
+    this.sideline.update(this.match,dt);
     const b=this.match.ball;
     this.ball.position.set(b.x,b.y,b.z);
     this.ball.rotation.z+=dt*3;

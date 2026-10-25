@@ -1,10 +1,12 @@
 import { BasketballMatch, SQUADS, COURT } from './simulation.js';
 import { ArenaScene } from './scene.js';
+import { ArenaAudio } from './audio.js';
 
 const $ = id => document.getElementById(id);
 let squads = [SQUADS[0], SQUADS[1]];
 let playing = true, speed = 1, scene = null, last = performance.now(), statsElapsed = 0, toastTimer;
 let match;
+const arenaAudio=new ArenaAudio();
 const captions = {
   pass: 'パスがつながる。オフェンスが展開する。',
   shot: 'リングへ放った！ シュートの行方は…',
@@ -53,6 +55,7 @@ function displayEvent(type, info) {
       ' · ' + match.score.join(' : ');
   }
   $('commentary').textContent = description;
+  arenaAudio.onEvent(type,info,squads);
   if (type === 'pass' || type === 'shot' || type === 'rebound') return;
   $('event-title').textContent = title;
   $('event-subtitle').textContent = description;
@@ -66,11 +69,13 @@ match = new BasketballMatch(displayEvent);
 
 function setPlaying(value) {
   playing = value;
+  arenaAudio.setPlaying(value);
   $('play').textContent = value ? 'Ⅱ' : '▶';
   $('play').setAttribute('aria-label', value ? '一時停止' : '再生');
   $('live-label').textContent = match.ended ? 'FINAL SCORE' : value ? 'LIVE GAME' : 'PAUSED';
 }
 function restart() {
+  arenaAudio.stopSpeech();
   match.reset();
   match.settings.style = $('style-select').value;
   setPlaying(true);
@@ -127,6 +132,7 @@ document.addEventListener('keydown', e => {
 });
 document.querySelectorAll('[data-speed]').forEach(button => button.addEventListener('click', () => {
   speed = Number(button.dataset.speed);
+  arenaAudio.setSpeed(speed);
   document.querySelectorAll('[data-speed]').forEach(other => other.classList.toggle('active', other === button));
 }));
 const cameraHints = {
@@ -142,14 +148,32 @@ document.querySelectorAll('[data-camera]').forEach(button => button.addEventList
   $('camera-label').textContent = cameraHints[mode][0];
   $('camera-help').textContent = cameraHints[mode][1];
 }));
-$('fullscreen').addEventListener('click', async () => {
+async function toggleFullscreen() {
   try {
     if (document.fullscreenElement) await document.exitFullscreen();
     else await $('viewport').requestFullscreen();
   } catch {
     displayEvent('fullscreen', {});
   }
+}
+$('fullscreen').addEventListener('click',toggleFullscreen);
+$('fullscreen-inview').addEventListener('click',toggleFullscreen);
+$('crowd-toggle').addEventListener('click',async()=>{
+  const next=!arenaAudio.crowdEnabled;
+  const success=await arenaAudio.setCrowd(next);
+  arenaAudio.setPlaying(playing);
+  $('crowd-toggle').setAttribute('aria-pressed',String(arenaAudio.crowdEnabled));
+  $('crowd-toggle').textContent='観客音 '+(arenaAudio.crowdEnabled?'ON':'OFF');
+  if(next&&!success)$('commentary').textContent='このブラウザは観客音の再生に対応していません。';
 });
+$('voice-toggle').addEventListener('click',()=>{
+  const next=!arenaAudio.commentaryEnabled;
+  const success=arenaAudio.setCommentary(next);
+  $('voice-toggle').setAttribute('aria-pressed',String(arenaAudio.commentaryEnabled));
+  $('voice-toggle').textContent='実況音声 '+(arenaAudio.commentaryEnabled?'ON':'OFF');
+  if(next&&!success)$('commentary').textContent='音声読み上げが利用できないブラウザです。';
+});
+
 
 function formatClock(time) {
   const t = Math.max(0, Math.ceil(time));

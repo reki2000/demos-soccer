@@ -13,7 +13,7 @@ button:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid #d1f
 nav{display:flex;align-items:center;gap:26px;font-size:10px;letter-spacing:2px;color:#a3adb7}
 nav b{color:#f0eee4;font-weight:700}
 .sibling{font-size:11px;text-decoration:none;color:#c8d9d6;letter-spacing:1px;white-space:nowrap}
-main{width:min(1440px,100%);margin:auto;padding:40px 26px 24px}
+main{width:min(1440px,100%);margin:auto;padding:18px 26px 24px}
 .page-heading{display:flex;justify-content:space-between;gap:20px;align-items:center;margin-bottom:34px}
 .eyebrow{font-size:10px;letter-spacing:2.7px;color:#b5dcbf;font-weight:800}
 h1,h2{font-family:'Barlow Condensed','Arial Narrow',Impact,sans-serif;letter-spacing:-.5px}
@@ -109,7 +109,7 @@ footer{border-top:1px solid #394853;margin-top:30px;padding-top:18px;display:fle
 .viewport:fullscreen{height:100vh;width:100vw}
 .viewport:fullscreen #minimap{width:220px;height:126px}
 @media(max-width:1080px){.workspace{grid-template-columns:minmax(0,1fr)}.control-panel{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.settings-card{margin:0}.stat-grid{gap:15px}}
-@media(max-width:740px){.topbar{height:60px;padding:0 14px}.brand{font-size:18px}.topbar nav{display:none}.sibling{font-size:9px}main{padding:23px 12px}.page-heading{align-items:start}.edition{display:none}.page-heading p{font-size:11px}.workspace{gap:12px}.viewport{height:440px}.scoreboard{top:10px;height:51px}.score-team{padding:0 9px;gap:6px;font-size:17px}.team-marker{height:20px;width:6px}.score{padding:0 10px;gap:7px;font-size:25px}.clock{padding:3px 7px;min-width:62px}.broadcast-mark{top:75px}.player-card{bottom:52px;left:8px;min-width:0;padding:8px;max-width:55%}.player-identity strong{font-size:10px;white-space:normal}.player-identity small{font-size:8px}#minimap{bottom:52px;right:7px;width:127px;height:75px}.playback{gap:5px;padding:8px}.control-label{margin-left:2px;font-size:8px}.playback-end{font-size:0}.playback-end kbd{display:none}.segmented button{padding:9px 8px}.stats{padding:17px 12px}.stat-grid{grid-template-columns:1fr 1fr;gap:20px}.possession-stat{grid-column:span 2}.control-panel{grid-template-columns:1fr}.settings-card{padding:18px}.camera-options{grid-template-columns:repeat(4,1fr)}.camera-options button{font-size:8px;padding:7px;min-height:56px}.camera-options button small{font-size:9px}footer{flex-direction:column;line-height:1.5}}
+@media(max-width:740px){.topbar{height:60px;padding:0 14px}.brand{font-size:18px}.topbar nav{display:none}.sibling{font-size:9px}main{padding:14px 12px}.page-heading{align-items:start}.edition{display:none}.page-heading p{font-size:11px}.workspace{gap:12px}.viewport{height:440px}.scoreboard{top:10px;height:51px}.score-team{padding:0 9px;gap:6px;font-size:17px}.team-marker{height:20px;width:6px}.score{padding:0 10px;gap:7px;font-size:25px}.clock{padding:3px 7px;min-width:62px}.broadcast-mark{top:75px}.player-card{bottom:52px;left:8px;min-width:0;padding:8px;max-width:55%}.player-identity strong{font-size:10px;white-space:normal}.player-identity small{font-size:8px}#minimap{bottom:52px;right:7px;width:127px;height:75px}.playback{gap:5px;padding:8px}.control-label{margin-left:2px;font-size:8px}.playback-end{font-size:0}.playback-end kbd{display:none}.segmented button{padding:9px 8px}.stats{padding:17px 12px}.stat-grid{grid-template-columns:1fr 1fr;gap:20px}.possession-stat{grid-column:span 2}.control-panel{grid-template-columns:1fr}.settings-card{padding:18px}.camera-options{grid-template-columns:repeat(4,1fr)}.camera-options button{font-size:8px;padding:7px;min-height:56px}.camera-options button small{font-size:9px}footer{flex-direction:column;line-height:1.5}}
 @media(max-width:420px){.viewport{height:390px}.scoreboard{transform:translateX(-50%) scale(.9);transform-origin:top center}.score-team{padding:0 7px}.commentary{font-size:9px;max-width:56%}.player-identity>span{width:27px;height:33px;font-size:19px}#minimap{width:104px;height:64px}.player-card{bottom:49px}.camera-mark{font-size:8px}}
 
 /* Edition switch remains available on narrow displays */
@@ -119,3 +119,33 @@ footer{border-top:1px solid #394853;margin-top:30px;padding-top:18px;display:fle
 .sport-switch a.active{background:#b8e6c2;border-color:#b8e6c2;color:#1c3236}
 @media(min-width:741px){.stat-grid{grid-template-columns:2fr repeat(3,minmax(0,1fr));row-gap:20px}.simple-stat>div:last-child{font-size:18px}}
 @media(max-width:740px){.topbar .sport-switch{display:flex;gap:3px}.sport-switch a{padding:10px 8px;font-size:9px}.sibling{display:none}}
+
+
+/* Shared viewport camera deck; works during element fullscreen. */
+.viewport .overlay-camera{position:absolute;z-index:12;top:118px;right:14px;width:236px;
+  background:#182b38e8;backdrop-filter:blur(8px);border:1px solid #647c82;
+  border-radius:5px;padding:9px;pointer-events:auto}
+.viewport .overlay-camera-title{display:flex;align-items:center;justify-content:space-between;
+  color:#c6e4cc;letter-spacing:1.3px;font-size:10px;margin-bottom:7px}
+.viewport .overlay-camera .camera-options{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}
+.viewport .overlay-camera .camera-options button{min-height:42px;padding:5px 3px;font-size:9px;
+  align-items:center;text-align:center}
+.viewport .overlay-camera .camera-options small{font-size:8px}
+.viewport .overlay-camera #camera-help{font-size:9px;margin:7px 0 0;color:#b4c9ce;line-height:1.4}
+.viewport .inview-fullscreen{border:1px solid #6a8a85;color:#e6f6ec;background:transparent;
+  border-radius:3px;padding:2px 8px;cursor:pointer}
+.viewport:fullscreen .overlay-camera{top:108px;right:20px}
+@media(max-width:740px){
+ .viewport .overlay-camera{top:108px;right:8px;width:164px;padding:6px}
+ .viewport .overlay-camera .camera-options{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .viewport .overlay-camera .camera-options button{min-height:33px;font-size:8px}
+ .viewport .overlay-camera .camera-options small{display:none}
+ .viewport .overlay-camera #camera-help{font-size:8px}
+ .viewport:fullscreen .overlay-camera{top:92px;right:8px}
+}
+
+.panel-actions{display:flex;align-items:center;gap:6px}
+.sound-toggle{background:#29424b;border:1px solid #617c84;color:#d2e5de;
+  padding:7px 9px;font-size:10px;letter-spacing:.3px;border-radius:3px;white-space:nowrap}
+.sound-toggle[aria-pressed="true"]{border-color:#b5e5c1;color:#c7f4cf;background:#365c53}
+@media(max-width:740px){.sound-toggle{font-size:9px;padding:5px 6px}.panel-actions{gap:3px}}

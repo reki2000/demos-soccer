@@ -15,17 +15,10 @@
   <span class="sibling">3D SPORTS SIMULATOR</span>
 </header>
 <main>
-  <div class="page-heading">
-    <div><div class="eyebrow">FIVE ON FIVE. ALL THE WAY.</div>
-      <h1>Basketball, <em>in motion.</em></h1>
-      <p>コートに広がる10人の判断。試合はリアルタイムに動き続ける。</p>
-    </div>
-    <div class="edition"><span>EXHIBITION GAME</span><strong>01 <small>/ MATCHDAY</small></strong></div>
-  </div>
   <div class="workspace">
     <section class="match-panel" aria-label="3D試合中継">
       <div class="panel-bar"><div class="broadcast-title"><i class="live-dot"></i><b id="live-label">LIVE GAME</b><span>/</span> COURTSIDE ARENA</div>
-        <div class="panel-actions"><button id="fullscreen" class="flat-button" aria-label="全画面表示" title="全画面表示">⛶</button></div>
+        <div class="panel-actions"><button id="crowd-toggle" class="sound-toggle" aria-label="観客音を切り替える" aria-pressed="false">観客音 OFF</button><button id="voice-toggle" class="sound-toggle" aria-label="実況読み上げを切り替える" aria-pressed="false">実況音声 OFF</button><button id="fullscreen" class="flat-button" aria-label="全画面表示" title="全画面表示">⛶</button></div>
       </div>
       <div class="viewport" id="viewport">
         <div class="scoreboard" aria-label="スコア">
@@ -38,7 +31,12 @@
         <div id="event-toast" class="event-toast" role="status" aria-live="polite"><strong id="event-title"></strong><span id="event-subtitle"></span></div>
         <div id="player-card" class="player-card" hidden><div class="mini-label">ON THE BALL</div><div class="player-identity"><span id="player-number">7</span><div><strong id="player-name"></strong><small id="player-team"></small></div></div></div>
         <canvas id="minimap" width="232" height="132" aria-label="コート上の選手位置"></canvas>
-        <div class="camera-mark"><i></i><span id="camera-label">BROADCAST CAMERA</span></div>
+        <div class="overlay-camera" aria-label="カメラ操作"><div class="overlay-camera-title"><span>CAMERA</span><button id="fullscreen-inview" class="inview-fullscreen" aria-label="全画面を切り替え" title="全画面を切り替え">⛶</button></div><div class="camera-options">
+          <button data-camera="broadcast" class="active">BROADCAST <small>中継</small></button>
+          <button data-camera="follow">FOLLOW <small>追従</small></button>
+          <button data-camera="tactical">TACTICAL <small>俯瞰</small></button>
+          <button data-camera="free">FREE <small>自由</small></button>
+        </div><p id="camera-help">コート全体を捉えた中継アングル。</p></div><div class="camera-mark"><i></i><span id="camera-label">BROADCAST CAMERA</span></div>
         <div class="commentary" id="commentary">ティップオフを待っています。</div>
         <div id="loading" class="loading">アリーナを準備しています…</div>
       </div>
@@ -74,16 +72,7 @@
         <select id="away-select"></select>
         <button id="new-match" class="primary-button">NEW MATCH <span>↗</span></button>
       </section>
-      <section class="settings-card">
-        <div class="card-heading"><span class="eyebrow">02 / COURT VISION</span><h2>Camera angle</h2><p>カメラを切り替えて試合を観る。</p></div>
-        <div class="camera-options">
-          <button data-camera="broadcast" class="active">BROADCAST <small>中継</small></button>
-          <button data-camera="follow">FOLLOW <small>追従</small></button>
-          <button data-camera="tactical">TACTICAL <small>俯瞰</small></button>
-          <button data-camera="free">FREE <small>自由</small></button>
-        </div>
-        <p class="help" id="camera-help">コート全体を捉えた中継アングル。</p>
-      </section>
+      
       <section class="settings-card">
         <div class="card-heading"><span class="eyebrow">03 / GAME PLAN</span><h2>Play style</h2><p>シュート判断を調整する。</p></div>
         <label for="style-select">OFFENSE</label>

@@ -1,6 +1,7 @@
 import { updateMovement, resetIntent, chooseReceiver } from './tactics.js';
 
 import { COURT } from './court.js';
+import {startJump,advanceJumps,jumpHeight} from './athletic-motion.js';
 import {dribblePoint,releasePoint,receivePoint,arcPoint,mixPoint,blend,controllingHand,
   DRIBBLE_PERIOD,PASS_GATHER,PASS_CATCH,SHOT_GATHER} from './ball-motion.js';
 export { COURT } from './court.js';
@@ -165,6 +166,10 @@ export class BasketballMatch {
       start:{...this.ball},release:releasePoint(from,'shot'),
       end:{x:hoop.x,y:COURT.rimHeight,z:0},t:0,duration,stage:'gather'};
     from.action='shoot';from.actionTime=duration;
+    startJump(from,'shot',.50,.72);
+    const defenders=this.players.filter(p=>p.team!==from.team)
+      .filter(p=>dist(p,from)<3.4).sort((a,b)=>dist(a,from)-dist(b,from));
+    if(defenders.length)startJump(defenders[0],'contest',.36,.62);
     this.owner=null;
     this.ballControl={mode:'shot',from:from.id};
     this.shots[from.team]++;
@@ -175,7 +180,22 @@ export class BasketballMatch {
     f.t += dt / f.duration;
     const t=clamp(f.t,0,1);
     const elapsed=t*f.duration;
+    // Track the actual jumping shooter's hands during gathering. Once the
+    // ball has left the hands, freeze the release point for a stable arc.
+    if(f.kind==='shot' && f.stage==='gather') {
+      const shooter=this.players[f.from];
+      f.release=releasePoint(shooter,'shot');
+      f.release.y+=jumpHeight(shooter);
+    }
     if(f.kind==='rebound') {
+      if(!f.jumpTriggered && f.t>.30) {
+        f.jumpTriggered=true;
+        for(const team of [0,1]) {
+          const rebounder=this.players.filter(p=>p.team===team)
+            .sort((a,b)=>dist(a,f.end)-dist(b,f.end))[0];
+          startJump(rebounder,'rebound',.37,.65);
+        }
+      }
       this.ball=arcPoint(f.start,f.end,t,.55);
     } else {
       const gather=f.kind==='pass'?PASS_GATHER:SHOT_GATHER;
@@ -403,6 +423,7 @@ export class BasketballMatch {
     if (this.ended || !Number.isFinite(dt) || dt <= 0) return;
     dt = Math.min(dt, .15);
     this.elapsed += dt;
+    advanceJumps(this.players,dt);
     if (this.freeThrows) {
       this.updateFreeThrows(dt);
       return;
@@ -477,6 +498,7 @@ export class BasketballMatch {
       teamFouls: [...this.teamFouls], playerFouls: [...this.playerFouls],
       ftAttempts: [...this.ftAttempts], ftMakes: [...this.ftMakes],
       freeThrows:this.freeThrows?{...this.freeThrows}:null,
+      jumps:this.players.map(p=>p.jump?{...p.jump}:null),
       ball:{...this.ball},ballControl:this.ballControl?{...this.ballControl}:null,
       players: this.players.map(p => ({id: p.id, team: p.team, x: p.x, z: p.z,
         speed: p.speed, action: p.action, intent: p.intent, targetX: p.targetX, targetZ: p.targetZ}))};
