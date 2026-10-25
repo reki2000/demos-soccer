@@ -76,9 +76,10 @@ export class ArenaAudio {
     }
   }
   setCommentary(enabled) {
-    this.commentaryEnabled=!!enabled;
-    if(!enabled)this.stopSpeech();
-    return !!this.env.speechSynthesis && !!this.env.SpeechSynthesisUtterance;
+    const supported=!!this.env.speechSynthesis && !!this.env.SpeechSynthesisUtterance;
+    this.commentaryEnabled=!!enabled && supported;
+    if(!this.commentaryEnabled)this.stopSpeech();
+    return supported;
   }
   setPlaying(playing) {
     if(this.context && this.crowdGain) {
