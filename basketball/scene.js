@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { COURT } from './simulation.js';
 import { guardPose } from './guard-pose.js';
+import {defenseAnimationState} from './defensive-motion.js';
 import { runningLegPose } from './leg-gait.js';
 import {jumpHeight,runningBodyPose} from './athletic-motion.js';
 import {makeSidelines} from './sideline.js';
@@ -332,15 +333,18 @@ export class ArenaScene {
   update(dt) {
     for (const model of this.models) {
       const p = model.player;
-      const guard = guardPose(this.match, p);
-      const sprinting=!!guard && p.speed<1.65;
+      const motion=defenseAnimationState(this.match,p,guardPose(this.match,p));
+      const guard=motion.guard;
+      const sprinting=!!guard;
       const body=runningBodyPose(p.phase,p.speed,sprinting);
       const jumping=jumpHeight(p);
       model.group.position.set(p.x,body.bounce+jumping,p.z);
       // Defense faces the assigned player/ball while shuffling sideways.
       // Offense continues to face its movement direction.
-      if(!guard && p.team===this.match.possession && Number.isFinite(p.heading)) {
-        model.group.rotation.y=p.heading;
+      if((!guard && p.team===this.match.possession && Number.isFinite(p.heading)) || motion.runFacing) {
+        const facing=motion.runFacing?Math.atan2(p.vx,p.vz):p.heading;
+        const turn=Math.atan2(Math.sin(facing-model.group.rotation.y),Math.cos(facing-model.group.rotation.y));
+        model.group.rotation.y+=turn*(1-Math.exp(-dt*24));
       } else {
         const facing=guard?.faceAngle ?? (p.speed>.1?Math.atan2(p.vx,p.vz):model.group.rotation.y);
         const turn=Math.atan2(Math.sin(facing-model.group.rotation.y),Math.cos(facing-model.group.rotation.y));
@@ -378,7 +382,9 @@ export class ArenaScene {
         const side=i?1:-1;
         const arm=model.arms[i];
         let x=(i?wave:-wave)*.65, z=side*.08, ex=-.15, ez=0, wx=-.12;
-        if(guard){
+        if(p.jump?.type==='dunk'){
+          x=-2.7;z=side*.18;ex=-.05;wx=0;
+        }else if(guard){
           const target=guard.arms[i];
           x=target.shoulderX;z=target.shoulderZ;
           ex=target.elbowX;ez=target.elbowZ;wx=target.wristX;
