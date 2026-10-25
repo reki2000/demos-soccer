@@ -3,7 +3,7 @@ import { updateMovement, resetIntent, chooseReceiver } from './tactics.js';
 import { COURT } from './court.js';
 import {startJump,advanceJumps,jumpHeight} from './athletic-motion.js';
 import {dribblePoint,releasePoint,receivePoint,arcPoint,mixPoint,blend,controllingHand,
-  DRIBBLE_PERIOD,PASS_GATHER,PASS_CATCH,SHOT_GATHER} from './ball-motion.js';
+  DRIBBLE_PERIOD,PASS_GATHER,PASS_CATCH,SHOT_GATHER,passFlightDuration} from './ball-motion.js';
 export { COURT } from './court.js';
 export const SQUADS = [
   { id: 'tokyo', name: 'TOKYO SPARKS', code: 'TKY', color: 0x85d6ed, trim: 0x172c43, names: ['Kaito Sora', 'Ren Namba', 'Haru Sato', 'Yuto Arai', 'Daiki Mori'] },
@@ -138,7 +138,7 @@ export class BasketballMatch {
     if (!this.owner || this.flight) return;
     const from = this.owner;
     const recipient = chooseReceiver(this, from);
-    const duration=PASS_GATHER+(.38+dist(from,recipient)/10)+PASS_CATCH;
+    const duration=PASS_GATHER+passFlightDuration(dist(from,recipient))+PASS_CATCH;
     const hand=this.ballControl?.hand??1;
     this.flight={kind:'pass',team:from.team,from:from.id,to:recipient.id,
       hand,start:{...this.ball},release:releasePoint(from,'pass'),
