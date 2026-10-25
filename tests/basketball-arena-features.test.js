@@ -112,7 +112,7 @@ test('unsupported speech keeps the narration switch disabled',()=>{
   assert.equal(audio.commentaryEnabled,false);
 });
 
-test('shot release rises with the shooter's jump instead of staying at ground height',()=>{
+test("shot release rises with the shooter's jump instead of staying at ground height",()=>{
   const match=new BasketballMatch(()=>{},()=>.5);
   match.shoot();
   const baseline=match.flight.release.y;
