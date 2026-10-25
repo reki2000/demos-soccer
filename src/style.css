@@ -45,3 +45,29 @@
   #viewport #camera-help{font-size:8px}
   #viewport:fullscreen .overlay-camera{top:82px;right:8px}
 }
+
+/* Same compact camera/sound deck as basketball, also accessible in fullscreen. */
+#viewport .overlay-camera.arena-controls{top:76px;right:9px;width:184px;max-width:calc(100% - 18px);
+  padding:7px;background:#142019e9;border:1px solid #769078;border-radius:5px;z-index:18}
+#viewport:fullscreen .overlay-camera.arena-controls{top:12px;right:12px;width:184px}
+#viewport .arena-controls .overlay-camera-title{font-size:9px;margin-bottom:5px}
+#viewport .arena-controls .camera-controls{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px}
+#viewport .arena-controls .camera-controls button{font-size:9px;padding:6px 0;white-space:nowrap}
+#viewport .arena-controls .arena-audio-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;margin-top:5px}
+#viewport .arena-controls .sound-toggle{color:#e0e9db;border:1px solid #63785f;border-radius:3px;background:#293929;
+  padding:5px 3px;font-size:9px;min-width:0;white-space:nowrap;cursor:pointer}
+#viewport .arena-controls .sound-toggle[aria-pressed="true"]{background:#435e37;color:#f2facf;border-color:#d4eb87}
+#viewport .arena-controls .inview-audio{grid-column:span 2;border-color:#d4eb87}
+#viewport .arena-controls .inview-fullscreen{font-size:9px;padding:4px 6px;white-space:nowrap}
+#viewport .audio-status{position:absolute;z-index:11;bottom:12px;right:10px;max-width:44%;
+  color:#f3f8ed;background:#16251bcb;font-size:9px;line-height:1.35;padding:4px 7px;
+  border-radius:3px;pointer-events:none}
+#viewport .audio-status[data-state="error"]{color:#ffc7af;background:#482b26e6}
+@media(max-width:600px){
+ #viewport .overlay-camera.arena-controls{top:66px;right:6px;width:154px;padding:5px}
+ #viewport:fullscreen .overlay-camera.arena-controls{top:68px;right:6px;width:154px}
+ #viewport .arena-controls .camera-controls{grid-template-columns:repeat(4,minmax(0,1fr))}
+ #viewport .arena-controls .camera-controls button{font-size:8px;padding:5px 0}
+ #viewport .arena-controls .sound-toggle{font-size:8px;padding:4px 1px}
+ #viewport .audio-status{bottom:12px;font-size:8px;max-width:50%}
+}

@@ -149,3 +149,28 @@ footer{border-top:1px solid #394853;margin-top:30px;padding-top:18px;display:fle
   padding:7px 9px;font-size:10px;letter-spacing:.3px;border-radius:3px;white-space:nowrap}
 .sound-toggle[aria-pressed="true"]{border-color:#b5e5c1;color:#c7f4cf;background:#365c53}
 @media(max-width:740px){.sound-toggle{font-size:9px;padding:5px 6px}.panel-actions{gap:3px}}
+
+
+/* A single small floating deck remains accessible while fullscreen. */
+.viewport .overlay-camera.arena-controls{top:88px;right:9px;width:184px;max-width:calc(100% - 18px);padding:7px;
+  background:#142735e9;border:1px solid #66818a;border-radius:5px;z-index:18}
+.viewport:fullscreen .overlay-camera.arena-controls{top:12px;right:12px;width:184px}
+.viewport .arena-controls .overlay-camera-title{margin-bottom:5px;font-size:9px}
+.viewport .arena-controls .camera-options{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px}
+.viewport .arena-controls .camera-options button{min-height:28px;padding:3px 1px;font-size:9px;text-align:center;white-space:nowrap}
+.viewport .arena-controls .arena-audio-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;margin-top:5px}
+.viewport .arena-controls .sound-toggle{font-size:9px;min-width:0;padding:5px 3px;text-align:center}
+.viewport .arena-controls .inview-audio{grid-column:span 2;background:#395951;border-color:#b5e5c1}
+.viewport .arena-controls .inview-fullscreen{font-size:9px;padding:4px 6px;white-space:nowrap}
+.viewport .audio-status{position:absolute;z-index:11;bottom:33px;left:12px;max-width:48%;
+  color:#f4f7ef;font-size:10px;line-height:1.35;text-shadow:0 1px 5px #000;background:#122332c9;
+  padding:4px 7px;border-radius:3px;pointer-events:none}
+.viewport .audio-status[data-state="error"]{color:#ffceb7;background:#462a28e6}
+@media(max-width:740px){
+ .viewport .overlay-camera.arena-controls{top:68px;right:6px;width:154px;padding:5px}
+ .viewport:fullscreen .overlay-camera.arena-controls{top:70px;right:6px;width:154px}
+ .viewport .arena-controls .camera-options{grid-template-columns:repeat(4,minmax(0,1fr))}
+ .viewport .arena-controls .camera-options button{font-size:8px;min-height:25px;padding:2px 0}
+ .viewport .arena-controls .sound-toggle{font-size:8px;padding:4px 1px}
+ .viewport .audio-status{max-width:50%;bottom:31px;font-size:8px}
+}

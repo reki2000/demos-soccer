@@ -5,6 +5,10 @@ export const DRIBBLE_PERIOD = .56;
 export const PASS_GATHER = .17;
 export const PASS_CATCH = .18;
 export const SHOT_GATHER = .27;
+export function passFlightDuration(distance) {
+  // Quick, decisive passes; gathering and receiving remain distinct phases.
+  return .32 + Math.max(0,distance)/12;
+}
 export const clamp = (v,a,b) => Math.max(a,Math.min(b,v));
 export const lerp = (a,b,t) => a+(b-a)*t;
 export const blend = t => { const u=clamp(t,0,1);return u*u*(3-2*u); };
