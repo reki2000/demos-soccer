@@ -165,8 +165,9 @@ function refreshAudioButtons() {
   $('crowd-toggle').textContent='観客音 '+(crowd?'ON':'OFF');
   $('voice-toggle').textContent='実況音声 '+(voice?'ON':'OFF');
   const title=crowd&&voice?'♪ 音声テスト':'♪ 音声を開始';
-  $('audio-enable').textContent=title;
   $('audio-enable-inview').textContent=title;
+  $('voice-toggle').textContent='実況 '+(voice?'ON':'OFF');
+  $('crowd-toggle').textContent='効果音 '+(crowd?'ON':'OFF');
 }
 arenaAudio.onStatus=({channel,message,state})=>{
   const status=$('audio-status');
@@ -187,7 +188,6 @@ async function enableAudio() {
     $('audio-status').textContent='観客音を有効にしました。実況には端末の日本語読み上げ機能が必要です。';
   }
 }
-$('audio-enable').addEventListener('click',enableAudio);
 $('audio-enable-inview').addEventListener('click',enableAudio);
 $('crowd-toggle').addEventListener('click',async()=>{
   const enabled=!arenaAudio.crowdEnabled;
@@ -279,6 +279,7 @@ function animate(now) {
     for (let i = 0; i < steps; i++) match.update(gameSeconds / steps);
     if (match.ended) setPlaying(false);
   }
+  if(playing)arenaAudio.update(dt,match,'basketball');
   scene?.update(dt);
   statsElapsed += dt;
   if (statsElapsed >= .1) {
