@@ -147,7 +147,7 @@ export class ArenaAudio {
     this.playing=!!playing;
     if(this.context&&this.crowdGain) {
       this.crowdGain.gain.setTargetAtTime(
-        this.playing&&this.crowdEnabled?.95:0,this.context.currentTime,.10);
+        (this.playing && this.crowdEnabled) ? .95 : 0,this.context.currentTime,.10);
     }
     if(!playing)this.stopSpeech();
   }
@@ -161,7 +161,10 @@ export class ArenaAudio {
     if(!this.commentaryEnabled||!this.playing||!this.env.SpeechSynthesisUtterance)return false;
     const synth=this.env.speechSynthesis;
     if(!priority&&(synth?.speaking||synth?.pending))return false;
-    this.stopSpeech();
+    // Cancel only an existing utterance. On some mobile engines, calling
+    // cancel() just before the *first* speak() suppresses the new speech.
+    if(this.speech || synth?.speaking || synth?.pending)this.stopSpeech();
+    else this.speechToken++;
     const token=this.speechToken;
     try {
       const speech=new this.env.SpeechSynthesisUtterance(text);
