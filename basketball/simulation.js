@@ -130,7 +130,7 @@ export class BasketballMatch {
     const approach=Math.max(.42,Math.min(2.9,dist(near,landing)/3.4));
     this.scoredInbound={team,picker:near.id,phase:'fall',time:0,from,landing,
       approach,start:{x:near.x,z:near.z}};
-    this.pause=.62+approach+.32;
+    this.pause=.95+approach+.32;
     this.ballReturn=null;
     this.ballControl={mode:'scoredInbound',phase:'fall'};
     near.action='run';
@@ -141,12 +141,14 @@ export class BasketballMatch {
     if(!state)return;
     const player=this.players[state.picker];
     state.time+=dt;
-    const t=state.time,fall=.62;
+    const t=state.time,fall=.95;
     if(t<fall) {
       state.phase='fall';
       const u=Math.min(1,t/fall);
-      const height=u<.72?state.from.y-(state.from.y-.125)*(u/.72)**2:
-        .125+.28*Math.sin(Math.PI*(u-.72)/.28);
+      // A near-gravity drop over ~0.81s, then a short diminishing bounce.
+      // The old .45s drop accelerated the ball by >1m in a single 100ms tick.
+      const height=u<.85?state.from.y-(state.from.y-.125)*(u/.85)**2:
+        .125+.18*Math.sin(Math.PI*(u-.85)/.15);
       this.ball={...state.landing,y:Math.max(.125,height)};
     } else if(t<fall+state.approach) {
       state.phase='approach';
