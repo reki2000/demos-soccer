@@ -274,7 +274,7 @@ function animate(now) {
   const dt = Math.min(Math.max(0,(now - last) / 1000), .07);
   last = now;
   if (playing && !match.ended) {
-    const gameSeconds = dt * speed;
+    const gameSeconds = dt * speed * 1.3;
     const steps = Math.ceil(gameSeconds / .06);
     for (let i = 0; i < steps; i++) match.update(gameSeconds / steps);
     if (match.ended) setPlaying(false);
