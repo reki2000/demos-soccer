@@ -119,3 +119,27 @@ footer{border-top:1px solid #394853;margin-top:30px;padding-top:18px;display:fle
 .sport-switch a.active{background:#b8e6c2;border-color:#b8e6c2;color:#1c3236}
 @media(min-width:741px){.stat-grid{grid-template-columns:2fr repeat(3,minmax(0,1fr));row-gap:20px}.simple-stat>div:last-child{font-size:18px}}
 @media(max-width:740px){.topbar .sport-switch{display:flex;gap:3px}.sport-switch a{padding:10px 8px;font-size:9px}.sibling{display:none}}
+
+
+/* Shared viewport camera deck; works during element fullscreen. */
+.viewport .overlay-camera{position:absolute;z-index:12;top:118px;right:14px;width:236px;
+  background:#182b38e8;backdrop-filter:blur(8px);border:1px solid #647c82;
+  border-radius:5px;padding:9px;pointer-events:auto}
+.viewport .overlay-camera-title{display:flex;align-items:center;justify-content:space-between;
+  color:#c6e4cc;letter-spacing:1.3px;font-size:10px;margin-bottom:7px}
+.viewport .overlay-camera .camera-options{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}
+.viewport .overlay-camera .camera-options button{min-height:42px;padding:5px 3px;font-size:9px;
+  align-items:center;text-align:center}
+.viewport .overlay-camera .camera-options small{font-size:8px}
+.viewport .overlay-camera #camera-help{font-size:9px;margin:7px 0 0;color:#b4c9ce;line-height:1.4}
+.viewport .inview-fullscreen{border:1px solid #6a8a85;color:#e6f6ec;background:transparent;
+  border-radius:3px;padding:2px 8px;cursor:pointer}
+.viewport:fullscreen .overlay-camera{top:108px;right:20px}
+@media(max-width:740px){
+ .viewport .overlay-camera{top:108px;right:8px;width:164px;padding:6px}
+ .viewport .overlay-camera .camera-options{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .viewport .overlay-camera .camera-options button{min-height:33px;font-size:8px}
+ .viewport .overlay-camera .camera-options small{display:none}
+ .viewport .overlay-camera #camera-help{font-size:8px}
+ .viewport:fullscreen .overlay-camera{top:92px;right:8px}
+}
