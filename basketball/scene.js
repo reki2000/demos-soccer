@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { COURT } from './simulation.js';
 import { guardPose } from './guard-pose.js';
 import {defenseAnimationState} from './defensive-motion.js';
+import {shadowAppearance} from './shadows.js';
 import { runningLegPose } from './leg-gait.js';
 import {jumpHeight,runningBodyPose} from './athletic-motion.js';
 import {makeSidelines} from './sideline.js';
@@ -180,6 +181,33 @@ function contactAmount(ball) {
   return ease((ball.y-.78)/.23);
 }
 
+// Alpha-textured discs give soft visible contact shadows even on GPUs with
+// limited real-time shadow resolution. Geometry is shared across ten players.
+function shadowTexture() {
+  const canvas=document.createElement('canvas');canvas.width=128;canvas.height=128;
+  const ctx=canvas.getContext('2d');
+  const gradient=ctx.createRadialGradient(64,64,3,64,64,63);
+  gradient.addColorStop(0,'rgba(9,18,25,.78)');
+  gradient.addColorStop(.28,'rgba(9,18,25,.60)');
+  gradient.addColorStop(.67,'rgba(9,18,25,.25)');
+  gradient.addColorStop(1,'rgba(9,18,25,0)');
+  ctx.fillStyle=gradient;ctx.fillRect(0,0,128,128);
+  return new THREE.CanvasTexture(canvas);
+}
+function contactShadow(parent,texture,size) {
+  const material=new THREE.MeshBasicMaterial({
+    map:texture,transparent:true,opacity:.32,depthWrite:false,
+    polygonOffset:true,polygonOffsetFactor:-1,side:THREE.DoubleSide
+  });
+  const circle=new THREE.Mesh(new THREE.PlaneGeometry(1,1),material);
+  circle.rotation.x=-Math.PI/2;
+  circle.position.y=-.041;
+  circle.scale.set(size,size,1);
+  circle.renderOrder=2;
+  parent.add(circle);
+  return circle;
+}
+
 export class ArenaScene {
   constructor(container, match, squads) {
     this.container = container;
@@ -220,6 +248,9 @@ export class ArenaScene {
     this.makeCourt();
     this.makeArena();
     this.sideline=makeSidelines(this.world,THREE,this.squads);
+    this.shadowTexture=shadowTexture();
+    this.shadows=[];
+    this.ballShadow=contactShadow(this.scene,this.shadowTexture,.49);
     this.playersGroup = new THREE.Group();
     this.scene.add(this.playersGroup);
     this.models = [];
@@ -320,6 +351,8 @@ export class ArenaScene {
       model.group.traverse(node => {node.geometry?.dispose();if(node.material){node.material.map?.dispose();node.material.dispose();}});
       model.group.removeFromParent();
     }
+    this.shadows.forEach(shadow=>{shadow.material.dispose();shadow.removeFromParent();});
+    this.shadows=this.match.players.map(()=>contactShadow(this.scene,this.shadowTexture,.78));
     this.models = this.match.players.map(p => {
       const model = createAthlete(p,this.squads[p.team]);
       this.playersGroup.add(model.group);
@@ -345,6 +378,11 @@ export class ArenaScene {
       const body=runningBodyPose(p.phase,p.speed,sprinting);
       const jumping=jumpHeight(p);
       model.group.position.set(p.x,body.bounce+jumping,p.z);
+      const floorShadow=this.shadows[p.id];
+      const shadow=shadowAppearance(body.bounce+jumping,.84);
+      floorShadow.position.set(p.x,-.038,p.z);
+      floorShadow.scale.set(shadow.radius,shadow.radius,1);
+      floorShadow.material.opacity=shadow.opacity;
       // Defense faces the assigned player/ball while shuffling sideways.
       // Offense continues to face its movement direction.
       if((!guard && p.team===this.match.possession && Number.isFinite(p.heading)) || motion.runFacing) {
@@ -433,6 +471,10 @@ export class ArenaScene {
     this.sideline.update(this.match,dt);
     const b=this.match.ball;
     this.ball.position.set(b.x,b.y,b.z);
+    const ballShade=shadowAppearance(b.y,.54);
+    this.ballShadow.position.set(b.x,-.034,b.z);
+    this.ballShadow.material.opacity=ballShade.opacity;
+    this.ballShadow.scale.set(ballShade.radius,ballShade.radius,1);
     this.ball.rotation.z+=dt*3;
     this.ball.rotation.x+=dt*1.4;
     this.halo.visible=!!this.match.owner;
