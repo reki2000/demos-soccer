@@ -49,7 +49,7 @@ export function chooseReceiver(match, from) {
     const progress = Math.max(0, 10 - distance(p, hoop));
     const reach = distance(from, p);
     const score = Math.min(4, openness) * 1.5 + Math.min(3, lane) * 1.4
-      + progress * .3 - Math.abs(reach - 6) * .11
+      + progress * .55 + (p.plan==='cut'?1.4:0) - Math.abs(reach - 6) * .11
       + Math.sin(match.elapsed * .4 + p.id * 2.3) * .4
       + match.random() * .12;
     return {p, score};
@@ -63,14 +63,14 @@ function offensePlan(match, p, holder) {
   if (p === match.owner) {
     const gap = distance(p, match.nearestDefender(p));
     const range = distance(p, match.basket(p.team));
-    const availableDrive = gap > 1.55 && range > 3.2 && match.shotClock > 4;
+    const availableDrive = gap > 1.45 && range > 1.8 && match.shotClock > 4;
     const chance = (match.random() + p.slot * .14) % 1;
     p.plan = availableDrive && chance < .54 ? 'drive' : 'probe';
     if (p.plan === 'drive') {
-      p.targetX = sign * (COURT.basketX - Math.max(2.4, range - (2.8 + chance * 2.1)));
+      p.targetX = sign * (COURT.basketX - Math.max(.78,range-(3.5+chance*2.25)));
       // Advance along one side of the lane rather than all holders taking
       // the same central corridor.
-      p.targetZ = clamp(p.z * .62 + p.variation * 1.2, -3.1, 3.1);
+      p.targetZ = clamp(p.z*.45+p.variation*.64,-1.55,1.55);
     } else {
       p.targetX = sign * (COURT.basketX - clamp(range, 4.5, 7.6));
       p.targetZ = clamp(p.z + Math.sin(match.elapsed * .65 + p.id) * 1.55, -5.25, 5.25);
@@ -85,8 +85,8 @@ function offensePlan(match, p, holder) {
   const ballZ = holder?.z ?? 0;
   if (availableCut && selection < .2 && match.possessionAge > 1.8) {
     p.plan = 'cut';
-    p.targetX = sign * (COURT.basketX - 1.6);
-    p.targetZ = clamp(p.variation * 1.3, -2.2, 2.2);
+    p.targetX = sign * (COURT.basketX - .95);
+    p.targetZ = clamp(p.variation*.85,-1.2,1.2);
     p.thinkIn = 2.8;
   } else if (holder && selection < .34 && p.slot !== 0) {
     p.plan = 'screen';
