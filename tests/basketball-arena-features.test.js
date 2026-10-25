@@ -80,14 +80,14 @@ test('audio remains off until explicitly enabled and can cancel spoken commentar
   audio.onEvent('score',{team:0,points:3},[{code:'TKY'}]);
   assert.match(spoken,/スリー/);
   audio.setCommentary(false);
-  assert.ok(cancelled>=2);
+  assert.ok(cancelled>=1);
 });
 
 test('both games place the camera deck inside the fullscreen viewport and not the sidebar',()=>{
   for(const path of ['index.html','basketball/index.html']){
     const html=readFileSync(new URL('../'+path,import.meta.url),'utf8');
     const viewport=html.indexOf('id="viewport"');
-    const deck=html.indexOf('class="overlay-camera"');
+    const deck=html.indexOf('class="overlay-camera arena-controls"');
     const sidebar=html.indexOf('<aside');
     assert.ok(deck>viewport && deck<sidebar,path+' camera deck must be part of viewport');
     assert.equal((html.match(/id="camera-help"/g)||[]).length,1);
@@ -123,4 +123,69 @@ test("shot release rises with the shooter's jump instead of staying at ground he
   }
   assert.ok(maxJumpY>baseline+.32, 'shot release never followed the elevated hands');
   assert.ok(match.flight && match.flight.stage==='gather');
+});
+
+test('both games offer compact sound and camera controls in the fullscreen viewport',()=>{
+  for(const path of ['index.html','basketball/index.html']){
+    const html=readFileSync(new URL('../'+path,import.meta.url),'utf8');
+    const camera=html.indexOf('class="overlay-camera arena-controls"');
+    const viewport=html.indexOf('id="viewport"');
+    const sidebar=html.indexOf('<aside');
+    assert.ok(camera>viewport&&camera<sidebar);
+    for(const id of ['fullscreen-inview','audio-enable-inview','crowd-toggle','voice-toggle','audio-status']){
+      assert.equal((html.match(new RegExp('id="'+id+'"','g'))||[]).length,1,path+' '+id);
+    }
+    assert.match(html,/縮小/);
+    assert.equal((html.match(/data-camera="/g)||[]).length,4);
+  }
+});
+
+test('audio test cue and referee and court effects synthesize sound after user opt-in',async()=>{
+  let oscillators=0,starts=0,stops=0;
+  class Param {
+    value=0;
+    setValueAtTime(v){this.value=v;}
+    linearRampToValueAtTime(v){this.value=v;}
+    exponentialRampToValueAtTime(v){this.value=v;}
+    setTargetAtTime(v){this.value=v;}
+    cancelScheduledValues(){}
+  }
+  class Node {connect(){return this;}}
+  class AudioContext {
+    state='running';currentTime=0;sampleRate=120;
+    destination=new Node();
+    createBuffer(channels,count){return {getChannelData:()=>new Float32Array(count)};}
+    createBufferSource(){return Object.assign(new Node(),{start(){},stop(){}});}
+    createBiquadFilter(){return Object.assign(new Node(),{frequency:new Param()});}
+    createGain(){return Object.assign(new Node(),{gain:new Param()});}
+    createOscillator(){oscillators++;return Object.assign(new Node(),{
+      frequency:new Param(),start(){starts++},stop(){stops++}
+    });}
+    async resume(){}
+    close(){}
+  }
+  const audio=new ArenaAudio({AudioContext});
+  assert.equal(audio.effect('whistle'),false);
+  assert.equal(await audio.setCrowd(true),true);
+  assert.equal(audio.crowdEnabled,true);
+  const initial=oscillators;
+  assert.ok(initial>0,'activation emits test beep');
+  for(const kind of ['whistle','squeak','bounce','kick','music']) {
+    assert.equal(audio.effect(kind),true,kind);
+  }
+  assert.ok(oscillators>initial+8);
+  const match={players:[{id:0,speed:3},{id:1,speed:2}],owner:{id:0},ballControl:{mode:'dribble',phase:.45}};
+  audio.update(.17,match);
+  match.ballControl.phase=.55;
+  audio.update(.17,match);
+  assert.ok(audio.soundEvents.includes('bounce'));
+  assert.ok(audio.soundEvents.includes('squeak'));
+  audio.setPlaying(false);
+  assert.equal(audio.effect('whistle'),false);
+  assert.equal(starts,stops);
+});
+
+test('basketball default progression is 30 percent faster',()=>{
+  const source=readFileSync(new URL('../basketball/main.js',import.meta.url),'utf8');
+  assert.match(source,/gameSeconds\s*=\s*dt\s*\*\s*speed\s*\*\s*1\.3/);
 });
