@@ -39,7 +39,8 @@ function displayEvent(type, info) {
     : type === 'violation' ? 'SHOT CLOCK'
     : type === 'steal' ? 'STEAL!' : type === 'rebound' ? 'REBOUND' : type === 'shot' ? 'SHOT ATTEMPT'
     : type === 'pass' ? 'PASS' : 'PLAY ON';
-  let description=describePlay(type,info,match,squads)||captions[type]||'';
+  const narration=describePlay(type,info,match,squads)||captions[type]||'';
+  let description=narration;
   if (type === 'score') {
     const player = match.players[info.player];
     description = squads[info.team].code + ' · #' + player.number + ' ' + squads[info.team].names[player.slot] +
@@ -57,8 +58,8 @@ function displayEvent(type, info) {
     description = squads[info.team].code + ' · ' + info.attempt + '/' + info.total +
       ' · ' + match.score.join(' : ');
   }
-  $('commentary').textContent=description;
-  arenaAudio.onEvent(type,{...info,commentary:description},squads);
+  $('commentary').textContent=narration;
+  arenaAudio.onEvent(type,{...info,commentary:narration},squads);
   if (type === 'pass' || type === 'shot' || type === 'rebound') return;
   $('event-title').textContent = title;
   $('event-subtitle').textContent = description;
