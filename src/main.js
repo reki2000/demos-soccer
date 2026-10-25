@@ -7,6 +7,8 @@ import {ArenaAudio} from '../basketball/audio.js';
 const $=id=>document.getElementById(id);
 const teams=[countries[0],countries[1]];let activeTeam=0,playing=true,speed=1,toastTimer;
 const arenaAudio=new ArenaAudio();
+arenaAudio.speechRate=2.14; // 1.5x the previous 1.43 Japanese play-by-play rate.
+arenaAudio.voicePreference='male'; // Prefer installed Japanese male voices.
 let lastCaptionSpeech=0;
 function toast(title,subtitle){
   const el=$('event-toast');
