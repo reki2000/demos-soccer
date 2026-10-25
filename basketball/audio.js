@@ -45,6 +45,15 @@ export class ArenaAudio {
     this.lastSpoken=0;
     this.speed=1;
     this.onStatus=()=>{};
+    this.motionClock=0;
+    this.lastBouncePhase=null;
+    this.lastBounceOwner=null;
+    this.lastSqueak=0;
+    this.lastBounce=0;
+    this.lastKick=0;
+    this.lastMusic=0;
+    this.soundEvents=[];
+    this.fxGain=null;
   }
   status(channel,message,state='info') {
     this.onStatus({channel,message,state});
@@ -82,6 +91,10 @@ export class ArenaAudio {
     filter.connect(cheer);
     crowd.connect(ctx.destination);
     cheer.connect(ctx.destination);
+    const fx=ctx.createGain();
+    fx.gain.value=.55;
+    fx.connect(ctx.destination);
+    this.fxGain=fx;
     source.start();
     this.crowdGain=crowd;
     this.cheerGain=cheer;
@@ -169,7 +182,7 @@ export class ArenaAudio {
     try {
       const speech=new this.env.SpeechSynthesisUtterance(text);
       speech.lang='ja-JP';
-      speech.rate=1.03;
+      speech.rate=1.43; // Faster, short-form sports commentary.
       speech.pitch=1;
       speech.volume=1;
       const voices=synth?.getVoices?.()??[];
@@ -206,7 +219,119 @@ export class ArenaAudio {
     this.lastSpoken=Date.now();
     return this.speak('実況音声を開始します。',true);
   }
+
+  // Short synthesized sports effects. Everything is generated at runtime:
+  // no third-party music, files or licensed stadium recordings.
+  tone(frequency,duration=.12,volume=.16,type='sine',endFrequency=frequency,startAt=null) {
+    const ctx=this.context;
+    if(!this.crowdEnabled||!this.playing||!ctx||!this.fxGain)return false;
+    if(!ctx.createOscillator||!ctx.createGain)return false;
+    const t=startAt??ctx.currentTime;
+    const oscillator=ctx.createOscillator();
+    const gain=ctx.createGain();
+    oscillator.type=type;
+    oscillator.frequency.setValueAtTime(frequency,t);
+    oscillator.frequency.exponentialRampToValueAtTime(Math.max(25,endFrequency),t+duration);
+    gain.gain.setValueAtTime(.0001,t);
+    gain.gain.exponentialRampToValueAtTime(Math.max(.0002,volume),t+.008);
+    gain.gain.exponentialRampToValueAtTime(.0001,t+duration);
+    oscillator.connect(gain);
+    gain.connect(this.fxGain);
+    oscillator.start(t);
+    oscillator.stop(t+duration+.015);
+    return true;
+  }
+  whistle() {
+    if(!this.context)return;
+    const t=this.context.currentTime;
+    this.tone(1880,.28,.23,'sine',2200,t);
+    this.tone(2440,.26,.08,'sine',2600,t+.025);
+    this.tone(1840,.20,.18,'sine',2050,t+.31);
+  }
+  squeak() {
+    const pitch=1200+Math.random()*320;
+    this.tone(pitch,.115,.11,'sawtooth',pitch*1.65);
+    this.tone(pitch*1.52,.09,.038,'sine',pitch*.8);
+  }
+  bounce() {
+    this.tone(165,.15,.26,'sine',59);
+    this.tone(320,.07,.045,'triangle',98);
+  }
+  kick() {
+    this.tone(230,.13,.20,'sine',80);
+    this.tone(470,.035,.075,'triangle',175);
+  }
+  // Original short organ motif, played as notes instead of a music file.
+  musicCue() {
+    if(!this.context||!this.crowdEnabled||!this.playing)return;
+    const now=this.context.currentTime;
+    const melody=[392,494,587,784,587,659,784,988];
+    melody.forEach((note,i)=>{
+      this.tone(note,.19,.046,'triangle',note,now+i*.175);
+      this.tone(note/2,.19,.022,'sine',note/2,now+i*.175);
+    });
+    this.lastMusic=this.motionClock;
+  }
+  effect(kind) {
+    if(!this.crowdEnabled||!this.playing)return false;
+    switch(kind){
+      case 'whistle':this.whistle();break;
+      case 'bounce':this.bounce();break;
+      case 'squeak':this.squeak();break;
+      case 'kick':this.kick();break;
+      case 'music':this.musicCue();break;
+      default:return false;
+    }
+    this.soundEvents.push(kind);
+    if(this.soundEvents.length>30)this.soundEvents.shift();
+    return true;
+  }
+  // Each render tick drives localized shoe and ball sounds; no per-frame
+  // oscillator is created unless a physical step/ball bounce has occurred.
+  update(dt,match,kind='basketball') {
+    if(!Number.isFinite(dt)||dt<=0)return;
+    this.motionClock+=dt;
+    if(!this.crowdEnabled||!this.playing)return;
+    const players=match.players??[];
+    const moving=players.filter(p=>p.speed>1.35).length;
+    if(moving>=2&&this.motionClock-this.lastSqueak>.25) {
+      this.effect('squeak');
+      this.lastSqueak=this.motionClock;
+    }
+    if(kind==='basketball') {
+      const control=match.ballControl;
+      const owner=match.owner?.id;
+      if(control?.mode==='dribble') {
+        const phase=control.phase;
+        if(this.lastBounceOwner===owner && this.lastBouncePhase!=null &&
+           phase>=.50 && this.lastBouncePhase<.50 &&
+           this.motionClock-this.lastBounce>.28) {
+          this.effect('bounce');
+          this.lastBounce=this.motionClock;
+        }
+        this.lastBouncePhase=phase;
+        this.lastBounceOwner=owner;
+      } else {
+        this.lastBouncePhase=null;
+        this.lastBounceOwner=null;
+      }
+    } else {
+      if(match.flight && match.flight!==this.lastFlight &&
+         this.motionClock-this.lastKick>.3) {
+        this.effect('kick');
+        this.lastKick=this.motionClock;
+      }
+      this.lastFlight=match.flight;
+    }
+    if(this.motionClock-this.lastMusic>35){
+      this.effect('music');
+      this.lastMusic=this.motionClock;
+    }
+  }
+
   onEvent(type,details,teams) {
+    if(type==='foul'||type==='violation')this.effect('whistle');
+    if(['score','freeThrowMade','quarter'].includes(type))this.effect('music');
     if(this.crowdEnabled&&this.context&&this.cheerGain&&this.playing) {
       const intensity=crowdReaction(type);
       if(intensity>0) {
