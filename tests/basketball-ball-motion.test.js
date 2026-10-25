@@ -135,17 +135,21 @@ test('a scored ball travels to the inbounder without snapping at the restart',()
   const game=new BasketballMatch(()=>{},()=>0);
   game.shoot();
   game.updateFlight(game.flight.duration);
-  assert.equal(game.pause,1.5);
-  let last={...game.ball};
-  let maximumJump=0;
-  for(let i=0;i<16;i++){
+  assert.ok(game.scoredInbound);
+  assert.equal(game.scoredInbound.phase,'fall');
+  let last={...game.ball}, maximumJump=0;
+  const phases=new Set();
+  for(let i=0;i<65;i++){
+    if(game.scoredInbound)phases.add(game.scoredInbound.phase);
     game.update(.1);
     maximumJump=Math.max(maximumJump,distance(last,game.ball));
     last={...game.ball};
-    if(game.pause===0)break;
+    if(!game.scoredInbound)break;
   }
+  assert.ok(phases.has('fall')&&phases.has('approach')&&phases.has('pickup'));
   assert.equal(game.possession,1);
-  assert.ok(maximumJump<.8,'inbound teleport: '+maximumJump);
+  assert.equal(game.scoredInbound,null);
+  assert.ok(maximumJump<.8,'scoring ball jumped: '+maximumJump);
 });
 
 test('shot-clock violation preserves ball continuity while resetting players',()=>{
