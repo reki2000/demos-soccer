@@ -158,21 +158,50 @@ async function toggleFullscreen() {
 }
 $('fullscreen').addEventListener('click',toggleFullscreen);
 $('fullscreen-inview').addEventListener('click',toggleFullscreen);
-$('crowd-toggle').addEventListener('click',async()=>{
-  const next=!arenaAudio.crowdEnabled;
-  const success=await arenaAudio.setCrowd(next);
+function refreshAudioButtons() {
+  const crowd=arenaAudio.crowdEnabled,voice=arenaAudio.commentaryEnabled;
+  $('crowd-toggle').setAttribute('aria-pressed',String(crowd));
+  $('voice-toggle').setAttribute('aria-pressed',String(voice));
+  $('crowd-toggle').textContent='観客音 '+(crowd?'ON':'OFF');
+  $('voice-toggle').textContent='実況音声 '+(voice?'ON':'OFF');
+  const title=crowd&&voice?'♪ 音声テスト':'♪ 音声を開始';
+  $('audio-enable').textContent=title;
+  $('audio-enable-inview').textContent=title;
+}
+arenaAudio.onStatus=({channel,message,state})=>{
+  const status=$('audio-status');
+  status.textContent=message;
+  status.dataset.state=state;
+  refreshAudioButtons();
+};
+async function enableAudio() {
+  // Speech must be called synchronously from the click, not after await.
+  const supported=arenaAudio.setCommentary(true);
+  if(supported)arenaAudio.testSpeech();
+  const crowdReady=await arenaAudio.setCrowd(true);
   arenaAudio.setPlaying(playing);
-  $('crowd-toggle').setAttribute('aria-pressed',String(arenaAudio.crowdEnabled));
-  $('crowd-toggle').textContent='観客音 '+(arenaAudio.crowdEnabled?'ON':'OFF');
-  if(next&&!success)$('commentary').textContent='このブラウザは観客音の再生に対応していません。';
+  refreshAudioButtons();
+  if(!crowdReady && supported) {
+    $('audio-status').textContent='実況音声を有効にしました。観客音はブラウザの音声設定を確認してください。';
+  } else if(!supported && crowdReady) {
+    $('audio-status').textContent='観客音を有効にしました。実況には端末の日本語読み上げ機能が必要です。';
+  }
+}
+$('audio-enable').addEventListener('click',enableAudio);
+$('audio-enable-inview').addEventListener('click',enableAudio);
+$('crowd-toggle').addEventListener('click',async()=>{
+  const enabled=!arenaAudio.crowdEnabled;
+  await arenaAudio.setCrowd(enabled);
+  arenaAudio.setPlaying(playing);
+  refreshAudioButtons();
 });
 $('voice-toggle').addEventListener('click',()=>{
-  const next=!arenaAudio.commentaryEnabled;
-  const success=arenaAudio.setCommentary(next);
-  $('voice-toggle').setAttribute('aria-pressed',String(arenaAudio.commentaryEnabled));
-  $('voice-toggle').textContent='実況音声 '+(arenaAudio.commentaryEnabled?'ON':'OFF');
-  if(next&&!success)$('commentary').textContent='音声読み上げが利用できないブラウザです。';
+  const enabled=!arenaAudio.commentaryEnabled;
+  const supported=arenaAudio.setCommentary(enabled);
+  if(enabled&&supported)arenaAudio.testSpeech();
+  refreshAudioButtons();
 });
+refreshAudioButtons();
 
 
 function formatClock(time) {
