@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { BasketballMatch } from '../basketball/simulation.js';
 import {dribblePoint,releasePoint,receivePoint,localToWorld,DRIBBLE_PERIOD,
-  BALL_RADIUS,PASS_GATHER,PASS_CATCH,SHOT_GATHER} from '../basketball/ball-motion.js';
+  BALL_RADIUS,PASS_GATHER,PASS_CATCH,SHOT_GATHER,passFlightDuration} from '../basketball/ball-motion.js';
 
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z);
 const xzDistance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
@@ -167,4 +167,21 @@ test('transition into dribbling after a steal eases the ball into the new hand',
   assert.ok(distance(prior,game.ball)<1e-9);
   game.syncHeldBall(.01);
   assert.ok(distance(prior,game.ball)<.8);
+});
+
+test('passes travel faster than the old flight timing without shortening gather or catch',()=>{
+  for(const metres of [2,5,9,15]){
+    const newTime=passFlightDuration(metres);
+    const oldTime=.38+metres/10;
+    assert.ok(newTime<oldTime*.91,'pass not accelerated at '+metres+'m');
+    const game=new BasketballMatch(()=>{},()=>.5);
+    const a=game.owner;
+    const b=game.players.find(p=>p.team===a.team&&p.id!==a.id);
+    const receiverDistance=xzDistance(a,b);
+    // Simulation chooses its own best receiver, but total time must still
+    // include the unchanged release and receiving phases.
+    game.pass();
+    assert.ok(game.flight.duration>PASS_GATHER+PASS_CATCH);
+    assert.ok(game.flight.duration<PASS_GATHER+(.38+receiverDistance/10)+PASS_CATCH+1.2);
+  }
 });
