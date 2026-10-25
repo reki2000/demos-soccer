@@ -23,3 +23,25 @@
 .sport-switch a:hover{background:#29372b;color:#f0f4e7}
 .sport-switch a.active{background:#d4eb87;border-color:#d4eb87;color:#1b2c20;font-weight:800}
 @media(max-width:680px){header{gap:8px;padding:0 3%}.sport-switch{gap:3px}.sport-switch a{padding:11px 8px;font-size:9px}.engine{display:none}.brand{font-size:17px;gap:5px}.brand-icon{width:24px;height:27px;font-size:21px}}
+
+
+/* Camera switching belongs to the fullscreen viewport, not the settings sidebar. */
+#viewport .overlay-camera{position:absolute;z-index:12;top:100px;right:14px;
+  width:232px;padding:9px;background:#142019d9;backdrop-filter:blur(7px);
+  border:1px solid #76907888;border-radius:6px;pointer-events:auto}
+#viewport .overlay-camera-title{display:flex;align-items:center;justify-content:space-between;
+  color:#d4eb87;font-size:10px;letter-spacing:1.4px;margin-bottom:6px}
+#viewport .camera-controls{grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}
+#viewport .camera-controls button{font-size:9px;padding:7px 1px;color:#d4dfcb}
+#viewport .camera-controls button span{font-size:14px;margin-bottom:2px}
+#viewport #camera-help{font-size:9px;color:#c7d4c2;margin:6px 0 0;line-height:1.35}
+#viewport .inview-fullscreen{background:transparent;border:1px solid #6c836e;color:#d8e9db;
+  border-radius:3px;padding:2px 8px;min-width:28px;cursor:pointer}
+#viewport:fullscreen .overlay-camera{top:92px;right:20px}
+@media(max-width:600px){
+  #viewport .overlay-camera{top:87px;right:7px;width:160px;padding:6px}
+  #viewport .camera-controls{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #viewport .camera-controls button span{display:inline;font-size:11px;margin:0 2px 0 0}
+  #viewport #camera-help{font-size:8px}
+  #viewport:fullscreen .overlay-camera{top:82px;right:8px}
+}
