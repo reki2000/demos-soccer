@@ -215,7 +215,12 @@ export function updateMovement(match, dt) {
     // Use final displacement rather than requested speed to animate the feet.
     // Collision correction is generally small; apply a smoothed speed cap.
     p.speed = Math.min(3.8, Math.hypot(p.vx,p.vz));
-    if(p.speed>.12) {
+    // The pass/shot gathering animation owns the facing angle until release.
+    // Otherwise running steering would turn the thrower away from the receiver.
+    if(p.throwTime>0) {
+      p.throwTime=Math.max(0,p.throwTime-dt);
+      p.heading=p.throwHeading;
+    } else if(p.speed>.12) {
       const direction=Math.atan2(p.vx,p.vz);
       const delta=Math.atan2(Math.sin(direction-(p.heading??0)),Math.cos(direction-(p.heading??0)));
       p.heading=(p.heading??0)+delta*(1-Math.exp(-dt*7));
