@@ -283,7 +283,7 @@ export class ArenaScene {
   makeArena() {
     for(const side of [-1,1]){
       for(let row=0;row<7;row++){
-        const z=side*(9.1+row*1.25);
+        const z=side*((side>0?11.25:9.1)+row*1.25);
         cuboid(this.world,[35,.5,1.35],row%2?0x263346:0x36445a,[0,.45+row*.57,z]);
       }
       for(let row=0;row<3;row++){
@@ -297,7 +297,7 @@ export class ArenaScene {
       const side = i%2 ? 1 : -1, row = Math.floor(i/50)%7, seat = Math.floor(i/2)%25;
       const color = new THREE.Color([0x8bacc1,0xc2b69a,0xbd7873,0x748b80,0x617184][(i*7+row)%5]);
       spectator.setColorAt(i,color);
-      dummy.position.set(-15+seat*1.25,.95+row*.58,side*(9.1+row*1.25));
+      dummy.position.set(-15+seat*1.25,.95+row*.58,side*((side>0?11.25:9.1)+row*1.25));
       dummy.scale.set(.72,1.4,.88);
       dummy.updateMatrix();spectator.setMatrixAt(i,dummy.matrix);
     }
