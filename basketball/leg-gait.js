@@ -1,6 +1,6 @@
 // Knee and ankle angles for an articulated running gait.
 // The hip is at y=.99; the sole is kept close to y=0 during stance.
-export const LEG_LENGTHS = Object.freeze({ upper: .45, lower: .43, hipHeight: .99 });
+export const LEG_LENGTHS = Object.freeze({ upper: .47, lower: .46, hipHeight: .99 });
 
 const TAU = Math.PI * 2;
 const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
@@ -33,7 +33,7 @@ export function runningLegPose(phase, speed, isGuard, side, spread = 0) {
     ? stride * (1 - 2 * progress)
     : stride * (-1 + 2 * smooth(progress));
   const lift = !stance ? (isGuard ? .22 : .34) * pace * Math.sin(Math.PI * progress) : 0;
-  const footY = -(.867 - (isGuard ? .024 : 0)) + lift;
+  const footY = -(.92 - .053 * pace - (isGuard ? .024 : 0)) + lift;
   const angles = solveLeg(z, footY);
 
   return {
