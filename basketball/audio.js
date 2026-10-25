@@ -329,7 +329,7 @@ export class ArenaAudio {
     }
   }
 
-  onEvent(type,details,teams) {
+  react(type) {
     if(type==='foul'||type==='violation')this.effect('whistle');
     if(['score','freeThrowMade','quarter'].includes(type))this.effect('music');
     if(this.crowdEnabled&&this.context&&this.cheerGain&&this.playing) {
@@ -343,6 +343,9 @@ export class ArenaAudio {
         gain.exponentialRampToValueAtTime(.001,now+.85+intensity*1.2);
       }
     }
+  }
+  onEvent(type,details,teams) {
+    this.react(type);
     if(!this.commentaryEnabled||!this.playing||!ANNOUNCE_TYPES.has(type))return;
     const now=Date.now();
     const urgent=['score','fulltime'].includes(type);
