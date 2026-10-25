@@ -75,6 +75,7 @@ function setPlaying(value) {
   $('live-label').textContent = match.ended ? 'FINAL SCORE' : value ? 'LIVE GAME' : 'PAUSED';
 }
 function restart() {
+  arenaAudio.stopSpeech();
   match.reset();
   match.settings.style = $('style-select').value;
   setPlaying(true);
@@ -160,6 +161,7 @@ $('fullscreen-inview').addEventListener('click',toggleFullscreen);
 $('crowd-toggle').addEventListener('click',async()=>{
   const next=!arenaAudio.crowdEnabled;
   const success=await arenaAudio.setCrowd(next);
+  arenaAudio.setPlaying(playing);
   $('crowd-toggle').setAttribute('aria-pressed',String(arenaAudio.crowdEnabled));
   $('crowd-toggle').textContent='観客音 '+(arenaAudio.crowdEnabled?'ON':'OFF');
   if(next&&!success)$('commentary').textContent='このブラウザは観客音の再生に対応していません。';
