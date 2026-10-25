@@ -95,3 +95,32 @@ test('both games place the camera deck inside the fullscreen viewport and not th
     assert.equal((html.match(/data-camera="/g)||[]).length,4);
   }
 });
+
+test('neither sport retains the removed in-motion hero area',()=>{
+  for(const path of ['index.html','basketball/index.html']) {
+    const html=readFileSync(new URL('../'+path,import.meta.url),'utf8');
+    assert.doesNotMatch(html,/class="page-heading"/);
+    assert.doesNotMatch(html,/<h1>/);
+    assert.doesNotMatch(html,/>MATCHDAY</);
+    assert.ok(html.indexOf('<main>') < html.indexOf('class="workspace"'));
+  }
+});
+
+test('unsupported speech keeps the narration switch disabled',()=>{
+  const audio=new ArenaAudio({});
+  assert.equal(audio.setCommentary(true),false);
+  assert.equal(audio.commentaryEnabled,false);
+});
+
+test('shot release rises with the shooter's jump instead of staying at ground height',()=>{
+  const match=new BasketballMatch(()=>{},()=>.5);
+  match.shoot();
+  const baseline=match.flight.release.y;
+  let maxJumpY=0;
+  for(let i=0;i<24;i++){
+    match.update(.01);
+    maxJumpY=Math.max(maxJumpY,match.flight?.release?.y??0);
+  }
+  assert.ok(maxJumpY>baseline+.32, 'shot release never followed the elevated hands');
+  assert.ok(match.flight && match.flight.stage==='gather');
+});
