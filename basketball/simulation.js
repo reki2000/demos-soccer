@@ -1,7 +1,7 @@
 import { updateMovement, resetIntent, chooseReceiver } from './tactics.js';
 
 import { COURT } from './court.js';
-import {startJump,advanceJumps} from './athletic-motion.js';
+import {startJump,advanceJumps,jumpHeight} from './athletic-motion.js';
 import {dribblePoint,releasePoint,receivePoint,arcPoint,mixPoint,blend,controllingHand,
   DRIBBLE_PERIOD,PASS_GATHER,PASS_CATCH,SHOT_GATHER} from './ball-motion.js';
 export { COURT } from './court.js';
@@ -180,6 +180,13 @@ export class BasketballMatch {
     f.t += dt / f.duration;
     const t=clamp(f.t,0,1);
     const elapsed=t*f.duration;
+    // Track the actual jumping shooter's hands during gathering. Once the
+    // ball has left the hands, freeze the release point for a stable arc.
+    if(f.kind==='shot' && f.stage==='gather') {
+      const shooter=this.players[f.from];
+      f.release=releasePoint(shooter,'shot');
+      f.release.y+=jumpHeight(shooter);
+    }
     if(f.kind==='rebound') {
       if(!f.jumpTriggered && f.t>.30) {
         f.jumpTriggered=true;
