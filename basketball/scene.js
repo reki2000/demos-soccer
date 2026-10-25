@@ -76,8 +76,11 @@ function createAthlete(player, team) {
   const hair = material([0x1b2026, 0x3b2d22, 0x775139][player.id % 3]);
   const shoe = material(player.slot % 2 ? 0xf3f0e6 : 0x27394b);
   group.add(torso);
-  mesh(torso, new THREE.CylinderGeometry(.22,.18,.54,8), main, 0, 1.32, 0);
-  mesh(torso, new THREE.CylinderGeometry(.19,.18,.16,8), trim, 0, 1.01, 0);
+  // Slightly wider left/right and flatter front/back, like a jersey torso.
+  mesh(torso,new THREE.CylinderGeometry(.22,.18,.54,8),main,0,1.32,0)
+    .scale.set(1.12,1,.84);
+  mesh(torso,new THREE.CylinderGeometry(.19,.18,.16,8),trim,0,1.01,0)
+    .scale.set(1.10,1,.86);
   mesh(torso, new THREE.CylinderGeometry(.065,.07,.13,8), skin, 0, 1.68, 0);
   const head = mesh(torso, new THREE.IcosahedronGeometry(.145,1), skin, 0, 1.82, 0);
   head.scale.set(.9, 1.1, .93);
@@ -100,7 +103,7 @@ function createAthlete(player, team) {
     mesh(ankle, new THREE.BoxGeometry(.14,.11,.26), shoe, 0,-.055,.07);
     legs.push({hip:thigh, knee, ankle});
     const arm = new THREE.Group();
-    arm.position.set(side * .235,1.53,0);
+    arm.position.set(side * .248,1.53,0);
     torso.add(arm);
     mesh(arm,new THREE.CylinderGeometry(.08,.069,.14,7),main,0,-.048,0);
     mesh(arm,new THREE.CylinderGeometry(.061,.052,.14,7),skin,0,-.17,0);
@@ -127,8 +130,11 @@ function createAthlete(player, team) {
   const ctx = plate.getContext('2d');
   ctx.fillStyle = '#fff6e6';ctx.textAlign='center';ctx.font='bold 75px Arial';
   ctx.fillText(String(player.number),64,89);
-  mesh(torso,new THREE.PlaneGeometry(.32,.32),
-    new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(plate),transparent:true,side:THREE.DoubleSide}),0,1.35,.208);
+  // Number faces backward (-local Z). It no longer appears on the chest.
+  const number=mesh(torso,new THREE.PlaneGeometry(.32,.32),
+    new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(plate),
+      transparent:true,side:THREE.DoubleSide,depthWrite:false}),0,1.35,-.190);
+  number.rotation.y=Math.PI;
   group.scale.setScalar(player.height / 1.99);
   return {group, legs, arms, torso, player};
 }
