@@ -1,4 +1,4 @@
-import { BasketballMatch, SQUADS, COURT } from './simulation.js';
+import { BasketballMatch, SQUADS, COURT, playerDisplayName } from './simulation.js';
 import { ArenaScene } from './scene.js';
 import { ArenaAudio } from './audio.js';
 import {createBasketballCommentary} from './commentary.js';
@@ -38,21 +38,22 @@ function displayEvent(type, info) {
     : type === 'freeThrowMissed' ? 'FREE THROW MISSED'
     : type === 'violation' ? 'SHOT CLOCK'
     : type === 'steal' ? 'STEAL!' : type === 'rebound' ? 'REBOUND' : type === 'shot' ? 'SHOT ATTEMPT'
+    : type === 'feint' ? 'CROSSOVER!'
     : type === 'pass' ? 'PASS' : 'PLAY ON';
   const narration=describePlay(type,info,match,squads)||captions[type]||'';
   let description=narration;
   if (type === 'score') {
     const player = match.players[info.player];
-    description = squads[info.team].code + ' · #' + player.number + ' ' + squads[info.team].names[player.slot] +
+    description = squads[info.team].code + ' · #' + player.number + ' ' + playerDisplayName(squads[info.team],player.slot) +
       '  /  ' + match.score.join(' : ');
   }
   if (type === 'foul') {
     const defender = match.players[info.player];
-    description = squads[info.team].code + ' · #' + defender.number + ' ' + squads[info.team].names[defender.slot] +
+    description = squads[info.team].code + ' · #' + defender.number + ' ' + playerDisplayName(squads[info.team],defender.slot) +
       ' / ' + info.playerFouls + ' PF · ' + info.teamFouls + ' TEAM FOULS' +
       (info.shooting ? ' · SHOOTING FOUL' : info.bonus ? ' · BONUS' : '');
   }
-  if (type === 'freeThrowStart') description = squads[info.team].names[match.players[info.player].slot] +
+  if (type === 'freeThrowStart') description = playerDisplayName(squads[info.team],match.players[info.player].slot) +
     ' · ' + info.attempts + ' FREE THROW' + (info.attempts > 1 ? 'S' : '');
   if (type === 'freeThrowMade' || type === 'freeThrowMissed') {
     description = squads[info.team].code + ' · ' + info.attempt + '/' + info.total +
@@ -242,7 +243,7 @@ function updateUI() {
     $('player-number').textContent = p.number;
     $('player-number').style.background = '#' + squads[p.team].color.toString(16).padStart(6,'0');
     $('player-number').style.color = '#' + squads[p.team].trim.toString(16).padStart(6,'0');
-    $('player-name').textContent = squads[p.team].names[p.slot];
+    $('player-name').textContent = playerDisplayName(squads[p.team],p.slot);
     $('player-team').textContent = squads[p.team].name + ' · ' + Math.round(p.height * 100) + ' cm';
   }
   if (match.ended) $('live-label').textContent = 'FINAL SCORE';

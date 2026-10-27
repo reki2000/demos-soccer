@@ -189,3 +189,11 @@ test('basketball default progression is 30 percent faster',()=>{
   const source=readFileSync(new URL('../basketball/main.js',import.meta.url),'utf8');
   assert.match(source,/gameSeconds\s*=\s*dt\s*\*\s*speed\s*\*\s*1\.3/);
 });
+
+test('basketball default camera is the ball-follow mode',()=>{
+  const scene=readFileSync(new URL('../basketball/scene.js',import.meta.url),'utf8');
+  const html=readFileSync(new URL('../basketball/index.html',import.meta.url),'utf8');
+  assert.match(scene,/this\.mode = 'follow'/);
+  assert.match(html,/<button data-camera="follow" class="active"/);
+  assert.match(html,/id="camera-label">BALL FOLLOW</);
+});

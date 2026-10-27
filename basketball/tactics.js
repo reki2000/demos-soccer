@@ -16,6 +16,8 @@ const COURT_Z = COURT.width / 2 - .7;
 export function resetIntent(match) {
   for (const p of match.players) {
     p.thinkIn = 0;
+    p.feint = null;
+    p.beaten = 0;
     p.plan = 'transition';
     p.intent = 'transition';
     p.targetX = p.x;
@@ -63,6 +65,16 @@ function offensePlan(match, p, holder) {
   if (p === match.owner) {
     const gap = distance(p, match.nearestDefender(p));
     const range = distance(p, match.basket(p.team));
+    if (range <= 2.7) {
+      // Under the basket the only plan is to finish. Probing from here used
+      // to walk the carrier back out to mid-range, so close shots were lost.
+      p.plan = 'finish';
+      p.targetX = sign * (COURT.basketX - .55);
+      p.targetZ = clamp(p.z, -1.1, 1.1) * .55;
+      p.intent = p.plan;
+      p.thinkIn = .35;
+      return;
+    }
     const availableDrive = gap > 1.45 && range > 1.8 && match.shotClock > 4;
     const chance = (match.random() + p.slot * .14) % 1;
     p.plan = availableDrive && chance < .54 ? 'drive' : 'probe';
@@ -154,6 +166,47 @@ export function updateMovement(match, dt) {
     }
   }
 
+  // Feint sequence: a hard fake step to one side makes the on-ball defender
+  // lunge that way; the carrier then crosses the ball over and bursts past
+  // on the other side while the defender is still recovering (beaten).
+  for (const p of match.players) {
+    if (p.beaten > 0) p.beaten = Math.max(0, p.beaten - dt);
+    if (!p.feint) continue;
+    const f = p.feint;
+    f.t += dt;
+    const hoop = match.basket(p.team);
+    let bx = hoop.x - p.x, bz = hoop.z - p.z;
+    const bl = Math.hypot(bx, bz) || 1;
+    bx /= bl; bz /= bl;
+    const lx = -bz * f.side, lz = bx * f.side;
+    const defender = match.players[f.defender];
+    if (f.t < .3) {
+      p.targetX = clamp(p.x + lx * 1.5 + bx * .3, -COURT_X, COURT_X);
+      p.targetZ = clamp(p.z + lz * 1.5 + bz * .3, -COURT_Z, COURT_Z);
+      if (defender) {
+        defender.targetX = clamp(defender.x + lx * 1.1, -COURT_X, COURT_X);
+        defender.targetZ = clamp(defender.z + lz * 1.1, -COURT_Z, COURT_Z);
+      }
+    } else {
+      if (!f.crossed) {
+        f.crossed = true;
+        if (match.ballControl?.mode === 'dribble') {
+          match.ballControl.hand = -match.ballControl.hand;
+          match.ballControl.cooldown = .55;
+        }
+        if (defender) defender.beaten = .55;
+        if (typeof match.emit === 'function') match.emit('feint', {team: p.team, player: p.id, defender: f.defender});
+      }
+      p.targetX = clamp(hoop.x - Math.sign(hoop.x) * .85, -COURT_X, COURT_X);
+      p.targetZ = clamp(p.z - lz * 1.1, -1.8, 1.8);
+    }
+    if (f.t >= f.dur) {
+      p.feint = null;
+      p.plan = 'drive';
+      p.intent = 'drive';
+    }
+  }
+
   // Accelerated steering rather than teleporting to straight-line waypoints.
   // Repulsion is evaluated before integration so it changes the movement path.
   const next = [];
@@ -177,14 +230,20 @@ export function updateMovement(match, dt) {
     // Per-player speed and acceleration make some sprint, some shuffle and
     // others pause to present for the pass.
     const pace = 2.5 + (p.slot === 0 ? .23 : 0) + (p.id % 3) * .23;
-    const speedCap = p === match.owner ? 2.35 : p.plan === 'cut' ? pace + .65 : pace;
+    let speedCap = p === match.owner ? 2.35 : p.plan === 'cut' ? pace + .65 : pace;
+    // Explosive first step out of the crossover; a beaten defender can only shuffle.
+    if (p.feint && p.feint.t >= .3) speedCap += 1.55;
+    if (p.beaten > 0) speedCap *= .45;
     const desiredSpeed = Math.min(speedCap, Math.sqrt(2 * 4.2 * gap));
     let wantX = dx * desiredSpeed + sx * 2.0;
     let wantZ = dz * desiredSpeed + sz * 2.0;
     const wantLength = Math.hypot(wantX,wantZ);
     if (wantLength > speedCap) {wantX *= speedCap/wantLength;wantZ *= speedCap/wantLength;}
     const ax = wantX - p.vx, az = wantZ - p.vz;
-    const amount = Math.min(1, 5.1 * dt / Math.max(.001, Math.hypot(ax,az)));
+    // The first step out of a crossover is explosive: roughly double the
+    // normal acceleration cap while bursting past the beaten defender.
+    const accelCap = p.feint && p.feint.t >= .3 ? 11 : 5.1;
+    const amount = Math.min(1, accelCap * dt / Math.max(.001, Math.hypot(ax,az)));
     const vx = p.vx + ax * amount, vz = p.vz + az * amount;
     next.push({x: clamp(p.x + vx*dt,-COURT_X,COURT_X),
       z: clamp(p.z + vz*dt,-COURT_Z,COURT_Z),vx,vz});
@@ -214,7 +273,13 @@ export function updateMovement(match, dt) {
   for(const p of match.players) {
     // Use final displacement rather than requested speed to animate the feet.
     // Collision correction is generally small; apply a smoothed speed cap.
+    const prevSpeed = p.speed || 0;
     p.speed = Math.min(3.8, Math.hypot(p.vx,p.vz));
+    // Smoothed acceleration and turn rate drive the body's lean and bank in
+    // the renderer, so starts, stops and cuts visibly shift the torso.
+    const rawAccel = dt > 0 ? (p.speed - prevSpeed) / dt : 0;
+    p.accel = (p.accel || 0) + (clamp(rawAccel, -9, 9) - (p.accel || 0)) * (1 - Math.exp(-dt * 6));
+    p.turnRate = 0;
     // The pass/shot gathering animation owns the facing angle until release.
     // Otherwise running steering would turn the thrower away from the receiver.
     if(p.throwTime>0) {
@@ -223,7 +288,9 @@ export function updateMovement(match, dt) {
     } else if(p.speed>.12) {
       const direction=Math.atan2(p.vx,p.vz);
       const delta=Math.atan2(Math.sin(direction-(p.heading??0)),Math.cos(direction-(p.heading??0)));
-      p.heading=(p.heading??0)+delta*(1-Math.exp(-dt*7));
+      const applied = delta*(1-Math.exp(-dt*7));
+      p.heading=(p.heading??0)+applied;
+      if (dt > 0) p.turnRate = clamp(applied / dt, -4, 4);
     }
     p.phase += p.speed * dt * 5.4;
     p.actionTime=Math.max(0,p.actionTime-dt);

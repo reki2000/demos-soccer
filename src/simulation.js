@@ -246,7 +246,13 @@ export class Match {
     const friends = this.players.filter(p => p.team === team && p !== scorer && p.slot !== 0)
       .sort((a, b) => distance(a, scorer) - distance(b, scorer)).slice(0, 3).map(p => p.id);
     this.stopForRestart('kickoff', restartingTeam, 0);
-    this.celebration = { team, restartingTeam, scorer: scorer.id, friends, elapsed: 0, phase: 'celebrate', laneSide: scorer.z >= 0 ? 1 : -1 };
+    const laneSide = scorer.z >= 0 ? 1 : -1;
+    // One fixed destination: the corner arc on the scorer's side. The old
+    // code re-aimed at a point relative to the scorer every frame, so the
+    // "target" kept escaping sideways and scorers drifted diagonally
+    // toward the touchline instead of running a celebration line.
+    const target = { x: this.direction(team) * 46.5, z: laneSide * 29 };
+    this.celebration = { team, restartingTeam, scorer: scorer.id, friends, elapsed: 0, phase: 'celebrate', laneSide, target };
     scorer.action = 'celebrate';
   }
 
@@ -270,11 +276,8 @@ export class Match {
     c.elapsed += dt;
     const scorer = this.players[c.scorer];
     if (c.phase === 'celebrate') {
-      if (Math.abs(scorer.z) > 28) c.laneSide = -Math.sign(scorer.z);
-      this.walkTo(scorer, {
-        x: clamp(scorer.x + this.direction(c.team) * 2, -49, 49),
-        z: scorer.z + c.laneSide * 8,
-      }, 2.6, dt);
+      const arrived = this.walkTo(scorer, c.target ?? { x: this.direction(c.team) * 46.5, z: c.laneSide * 29 }, 2.6, dt);
+      if (arrived) { scorer.speed = 0; scorer.running = 0; }
       scorer.action = 'celebrate';
       scorer.jump = 0;
       for (const p of this.players) {
@@ -599,6 +602,10 @@ export class Match {
       p.x = clamp(p.x + p.vx * dt, -50, 50);
       p.z = clamp(p.z + p.vz * dt, -31, 31);
       const actualSpeed = Math.hypot(p.vx, p.vz);
+      // Smoothed acceleration drives the torso pitch in the renderer, so
+      // players visibly lean into starts and settle back when braking.
+      const rawAccel = dt > 0 ? (actualSpeed - (p.speed || 0)) / dt : 0;
+      p.accel = (p.accel || 0) + (clamp(rawAccel, -9, 9) - (p.accel || 0)) * (1 - Math.exp(-dt * 6));
       p.speed = actualSpeed;
       p.running = clamp(actualSpeed / 4, 0, 1);
       p.turnRate = 0;

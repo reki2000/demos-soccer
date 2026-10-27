@@ -109,7 +109,7 @@ function updatePlayerCard(){
   if(!player)return;
   const profile=player.profile;
   $('player-status').textContent=match.celebration?'GOAL SCORER':match.flight?'LAST TOUCH':'ON THE BALL';
-  $('player-name').textContent=profile.name;
+  $('player-name').textContent=profile.displayName ?? profile.name;
   $('player-role').textContent=`${teams[player.team].flag} ${teams[player.team].code} · ${playerPosition(player.slot,match.settings[player.team].formation)} · ${profile.age}歳`;
   $('player-shirt').textContent=profile.number;
   $('player-shirt').style.background='#'+(player.slot===0?0xef8050:teams[player.team].shirt).toString(16).padStart(6,'0');

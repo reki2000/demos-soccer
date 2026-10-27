@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { BasketballMatch, COURT, SQUADS } from '../basketball/simulation.js';
+import { BasketballMatch, COURT, SQUADS, playerDisplayName } from '../basketball/simulation.js';
 import { resetIntent } from '../basketball/tactics.js';
 
 test('basketball fixture starts with ten players and a 24-second possession', () => {
@@ -265,4 +265,71 @@ test('simulation at 1x advances physical positions and the game clock by the sam
   game.update(.1);
   assert.ok(Math.abs(game.clock-599.9)<1e-8);
   assert.ok(Math.abs(game.owner.x-x)<.45);
+});
+
+test('carrier under the basket shoots immediately instead of passing or probing away', () => {
+  const game = new BasketballMatch(() => {}, () => .5);
+  const carrier = game.owner;
+  const hoop = game.basket(carrier.team);
+  carrier.x = hoop.x - 1.2;
+  carrier.z = .4;
+  game.decision = 5; // The finish must not wait for the decision timer.
+  game.update(1 / 60);
+  assert.ok(game.flight && game.flight.kind === 'shot');
+  assert.equal(game.shots[carrier.team], 1);
+});
+
+test('feint crossover crosses the ball over, beats the defender and bursts toward the hoop', () => {
+  const events = [];
+  const game = new BasketballMatch(type => events.push(type), () => .5);
+  const carrier = game.owner;
+  const hoop = game.basket(carrier.team);
+  carrier.x = hoop.x - 6;
+  carrier.z = 0;
+  const defender = game.nearestDefender(carrier);
+  defender.x = carrier.x + 1.6;
+  defender.z = .3;
+  const startX = carrier.x;
+  const handBefore = game.ballControl.hand;
+  carrier.feint = {t: 0, dur: .78, side: 1, defender: defender.id, crossed: false};
+  let beatenSeen = false;
+  for (let i = 0; i < 48; i++) {
+    game.movePlayers(1 / 60);
+    if ((defender.beaten || 0) > 0) beatenSeen = true;
+  }
+  assert.ok(events.includes('feint'));
+  assert.ok(beatenSeen);
+  assert.notEqual(game.ballControl.hand, handBefore);
+  assert.ok(carrier.x > startX + .5, `carrier should burst forward, moved ${carrier.x - startX}`);
+});
+
+test('update can trigger a feint against a close defender', () => {
+  const events = [];
+  // .004 triggers the feint roll (< dt*.5) without triggering the foul roll (< dt*.12).
+  const game = new BasketballMatch(type => events.push(type), () => .004);
+  const carrier = game.owner;
+  const hoop = game.basket(carrier.team);
+  carrier.x = hoop.x - 6;
+  carrier.z = 0;
+  const defender = game.nearestDefender(carrier);
+  defender.x = carrier.x + 2;
+  defender.z = 0;
+  game.decision = 5;
+  let feintSeen = false;
+  for (let i = 0; i < 90 && !feintSeen; i++) {
+    game.update(1 / 60);
+    if (carrier.feint || events.includes('feint')) feintSeen = true;
+  }
+  assert.ok(feintSeen);
+});
+
+test('squad names carry a Japanese annotation alongside the Roman name', () => {
+  for (const squad of SQUADS) {
+    assert.equal(squad.namesJa.length, squad.names.length);
+    for (let slot = 0; slot < squad.names.length; slot++) {
+      const display = playerDisplayName(squad, slot);
+      assert.ok(/[ぁ-んァ-ヶ一-龠]/.test(squad.namesJa[slot]), `${squad.id} ${slot}`);
+      assert.ok(display.includes(squad.namesJa[slot]) && display.includes(squad.names[slot]));
+    }
+  }
 });

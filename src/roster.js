@@ -9,6 +9,18 @@ const names = {
   spain: ['Hugo Serrano','Pablo Ortega','Diego Molina','Adrian Torres','Alex Navarro','Marcos Vidal','Izan Romero','Nico Santos','Leo Castillo','Daniel Vega','Mario Ruiz'],
   portugal: ['Tiago Moreira','Diogo Costa','Goncalo Sousa','Rafael Duarte','Nuno Pereira','Joao Mendes','Miguel Carvalho','Andre Faria','Pedro Azevedo','Tomas Silva','Rui Teixeira'],
 };
+// Japanese annotation for every name: kanji (with kana reading) for the
+// Japan squad, katakana transliteration for the other squads.
+const namesJa = {
+  japan: ['高橋 蓮（タカハシ・レン）','森 海翔（モリ・カイト）','林 悠斗（ハヤシ・ユウト）','中村 颯太（ナカムラ・ソウタ）','石川 春（イシカワ・ハル）','青木 陸（アオキ・リク）','藤田 大地（フジタ・ダイチ）','岡田 勇輝（オカダ・ユウキ）','水野 駿（ミズノ・シュン）','佐藤 晃（サトウ・アキラ）','松田 圭（マツダ・ケイ）'],
+  brazil: ['ルーカス・フェレイラ','ラファエル・コスタ','マテウス・リベイロ','ブルーノ・アルメイダ','カイオ・サントス','ペドロ・リマ','チアゴ・ローシャ','ガブリエウ・ヌネス','ダヴィ・モレイラ','フェリペ・アウヴェス','エンゾ・カルヴァーリョ'],
+  france: ['ユゴー・モロー','ノア・ローラン','マリク・ディアロ','ルイ・ベルナール','テオ・ガルニエ','アダム・ルフェーヴル','サミ・ベナリ','ジュール・ペラン','エリオット・デュボワ','レオ・マルタン','ノラン・フォール'],
+  argentina: ['トマス・モリーナ','ニコラス・ベガ','マテオ・ロハス','ルーカス・アコスタ','ファクンド・シルバ','サンティアゴ・ディアス','エミリアーノ・トーレス','フリアン・ナバーロ','バウティスタ・エレーラ','ラウタロ・ロメロ','フランコ・メディーナ'],
+  england: ['オリバー・ブルックス','ハリー・ベネット','アイザック・ウォーカー','イーサン・クラーク','ノア・ミッチェル','アルフィー・ターナー','ジェイコブ・モーガン','テオ・エヴァンス','オスカー・ヘイズ','ジョージ・パーカー','フィンリー・リード'],
+  germany: ['ヨナス・ヴェーバー','フェリックス・ヴァーグナー','レオン・リヒター','ルーカス・ブラント','エミール・フィッシャー','ノア・ケラー','マックス・ホフマン','アントン・シュライバー','フィン・ベルガー','パウル・シュナイダー','ベン・アドラー'],
+  spain: ['ウーゴ・セラーノ','パブロ・オルテガ','ディエゴ・モリーナ','アドリアン・トーレス','アレックス・ナバーロ','マルコス・ビダル','イサン・ロメロ','ニコ・サントス','レオ・カスティージョ','ダニエル・ベガ','マリオ・ルイス'],
+  portugal: ['チアゴ・モレイラ','ディオゴ・コスタ','ゴンサロ・ソウザ','ラファエル・ドゥアルテ','ヌーノ・ペレイラ','ジョアン・メンデス','ミゲル・カルヴァーリョ','アンドレ・ファリア','ペドロ・アゼヴェード','トマス・シルバ','ルイ・テイシェイラ'],
+};
 const skinTones = [0xf0c6a1,0xe1b18d,0xc9946d,0xb47c53,0x996341,0x7c4f33,0x603d29];
 const hairColors = [0x211e1a,0x39291e,0x65452b,0x9b7449,0xc2a56b];
 const hairstyles = ['crop','buzz','curls','sidepart','tied','shaved'];
@@ -22,10 +34,13 @@ export function getPlayerProfile(country, slot) {
   const random = () => { seed = (Math.imul(seed,1664525) + 1013904223) >>> 0; return seed / 4294967296; };
   const pool = names[country] ?? names.japan;
   const name = slot < pool.length ? pool[slot] : `${pool[slot % 11].split(' ')[0]} ${pool[(slot + 4) % 11].split(' ').slice(1).join(' ')}`;
+  const jaPool = namesJa[country] ?? namesJa.japan;
+  const nameJa = slot < jaPool.length ? jaPool[slot] : jaPool[slot % 11];
+  const displayName = `${nameJa} / ${name}`;
   const height = slot === 0 ? 184 + Math.floor(random() * 15) : 168 + Math.floor(random() * 25);
   const build = .9 + random() * .25;
   const profile = {
-    name, number: slot + 1, height, build,
+    name, nameJa, displayName, number: slot + 1, height, build,
     weight: Math.round((height - 105) * build),
     age: 19 + Math.floor(random() * 16),
     foot: random() < .24 ? '左' : '右',
