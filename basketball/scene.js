@@ -77,11 +77,17 @@ function createAthlete(player, team) {
   const hair = material([0x1b2026, 0x3b2d22, 0x775139][player.id % 3]);
   const shoe = material(player.slot % 2 ? 0xf3f0e6 : 0x27394b);
   group.add(torso);
-  // Slightly wider left/right and flatter front/back, like a jersey torso.
-  mesh(torso,new THREE.CylinderGeometry(.22,.18,.54,8),main,0,1.32,0)
+  // Slim athletic torso: narrower waist, still wider left/right than
+  // front/back, like a jersey on a lean frame.
+  mesh(torso,new THREE.CylinderGeometry(.195,.155,.54,8),main,0,1.32,0)
     .scale.set(1.12,1,.84);
-  mesh(torso,new THREE.CylinderGeometry(.19,.18,.16,8),trim,0,1.01,0)
-    .scale.set(1.10,1,.86);
+  mesh(torso,new THREE.CylinderGeometry(.168,.158,.16,8),trim,0,1.01,0)
+    .scale.set(1.08,1,.84);
+  // Jersey detailing: chest stripe and neckline in the trim colour.
+  mesh(torso,new THREE.CylinderGeometry(.184,.178,.05,8),trim,0,1.44,0)
+    .scale.set(1.11,1,.83);
+  mesh(torso,new THREE.CylinderGeometry(.088,.098,.045,8),trim,0,1.575,0)
+    .scale.set(1,1,.9);
   mesh(torso, new THREE.CylinderGeometry(.065,.07,.13,8), skin, 0, 1.68, 0);
   const head = mesh(torso, new THREE.IcosahedronGeometry(.145,1), skin, 0, 1.82, 0);
   head.scale.set(.9, 1.1, .93);
@@ -89,25 +95,29 @@ function createAthlete(player, team) {
   const legs = [], arms = [];
   for (const side of [-1, 1]) {
     const thigh = new THREE.Group();
-    thigh.position.set(side * .105,.99,0);
+    thigh.position.set(side * .095,.99,0);
     group.add(thigh);
-    mesh(thigh, new THREE.CylinderGeometry(.088,.072,.46,7), skin, 0,-.22,0);
-    mesh(thigh, new THREE.CylinderGeometry(.103,.088,.21,7), trim, 0,-.055,0);
+    mesh(thigh, new THREE.CylinderGeometry(.078,.064,.46,7), skin, 0,-.22,0);
+    mesh(thigh, new THREE.CylinderGeometry(.092,.078,.21,7), trim, 0,-.055,0);
+    // Shorts side stripe in the jersey colour.
+    mesh(thigh, new THREE.BoxGeometry(.018,.19,.05), main, side * .088,-.055,0);
     const knee = new THREE.Group();
     knee.position.y = -.47;
     thigh.add(knee);
-    mesh(knee, new THREE.IcosahedronGeometry(.078,1), skin, 0,0,0);
-    mesh(knee, new THREE.CylinderGeometry(.063,.053,.45,7), skin, 0,-.215,0);
+    mesh(knee, new THREE.IcosahedronGeometry(.07,1), skin, 0,0,0);
+    mesh(knee, new THREE.CylinderGeometry(.056,.047,.45,7), skin, 0,-.215,0);
     const ankle = new THREE.Group();
     ankle.position.y = -.46;
     knee.add(ankle);
-    mesh(ankle, new THREE.BoxGeometry(.14,.11,.26), shoe, 0,-.055,.07);
+    mesh(ankle, new THREE.BoxGeometry(.13,.10,.25), shoe, 0,-.055,.07);
+    // Light sole under the shoe.
+    mesh(ankle, new THREE.BoxGeometry(.135,.025,.255), material(0xf3f0e6), 0,-.112,.07);
     legs.push({hip:thigh, knee, ankle});
     const arm = new THREE.Group();
-    arm.position.set(side * .248,1.53,0);
+    arm.position.set(side * .222,1.53,0);
     torso.add(arm);
-    mesh(arm,new THREE.CylinderGeometry(.08,.069,.14,7),main,0,-.048,0);
-    mesh(arm,new THREE.CylinderGeometry(.061,.052,.14,7),skin,0,-.17,0);
+    mesh(arm,new THREE.CylinderGeometry(.07,.06,.14,7),main,0,-.048,0);
+    mesh(arm,new THREE.CylinderGeometry(.054,.046,.14,7),skin,0,-.17,0);
     const elbow = new THREE.Group();
     elbow.position.y = -.245;
     arm.add(elbow);
@@ -134,7 +144,7 @@ function createAthlete(player, team) {
   // Number faces backward (-local Z). It no longer appears on the chest.
   const number=mesh(torso,new THREE.PlaneGeometry(.32,.32),
     new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(plate),
-      transparent:true,side:THREE.DoubleSide,depthWrite:false}),0,1.35,-.190);
+      transparent:true,side:THREE.DoubleSide,depthWrite:false}),0,1.35,-.152);
   number.rotation.y=Math.PI;
   group.scale.setScalar(player.height / 1.99);
   return {group, legs, arms, torso, player};
@@ -375,7 +385,7 @@ export class ArenaScene {
       const motion=defenseAnimationState(this.match,p,guardPose(this.match,p));
       const guard=motion.guard;
       const sprinting=!!guard;
-      const body=runningBodyPose(p.phase,p.speed,sprinting);
+      const body=runningBodyPose(p.phase,p.speed,sprinting,p.turnRate||0,p.accel||0);
       const jumping=jumpHeight(p);
       model.group.position.set(p.x,body.bounce+jumping,p.z);
       const floorShadow=this.shadows[p.id];
@@ -421,6 +431,7 @@ export class ArenaScene {
       const naturalBounce=.025*Math.abs(Math.sin(p.phase))*running;
       model.torso.position.y=(guard?-crouch*.5:naturalBounce*.30)+hop;
       model.torso.rotation.x=guard?.10:body.lean;
+      model.torso.rotation.z=guard?0:-body.bank;
       const blend=1-Math.exp(-dt*11);
       for(let i=0;i<2;i++){
         const side=i?1:-1;

@@ -363,3 +363,20 @@ test('scorer continues running while teammates join the celebration', () => {
     assert.ok(scorer.running > 0);
   }
 });
+
+test('goal celebration runs in a straight line toward one fixed corner target', () => {
+  const m = new Match(() => {}, seededRandom(7));
+  m.lastTouchPlayer = 9;
+  shotAtEnd(m);
+  const c = m.celebration;
+  const target = { ...c.target };
+  assert.ok(target.x * m.direction(c.team) > 40, 'target should be the far corner area');
+  assert.ok(Math.abs(target.z) > 20, 'target should be on the scorer side near the corner');
+  const scorer = m.players[c.scorer];
+  const start = { x: scorer.x, z: scorer.z };
+  for (let i = 0; i < 120; i++) m.update(1 / 60);
+  assert.deepEqual({ ...m.celebration.target }, target, 'celebration target must not move');
+  assert.ok(Math.abs(target.x - scorer.x) < Math.abs(target.x - start.x), 'scorer should close on the corner in x');
+  assert.ok(Math.abs(target.z - scorer.z) < Math.abs(target.z - start.z), 'scorer should close on the corner in z');
+  assert.ok(Math.abs(scorer.z) <= 31, 'scorer must stay inside the touchline');
+});

@@ -96,3 +96,26 @@ test('squad identities and appearance vary and remain stable across resets', asy
   assignProfiles(m, countries.slice(0, 2));
   assert.equal(m.players[9].profile, identity);
 });
+
+test('body lean pitches with acceleration and banks into turns', async () => {
+  const { bodyLean } = await import('../src/gait.js');
+  assert.ok(bodyLean(4, 0, 5).pitch > bodyLean(4, 0, 0).pitch);
+  assert.ok(bodyLean(4, 0, 0).pitch > bodyLean(4, 0, -5).pitch);
+  assert.ok(bodyLean(4, 2, 0).roll < 0);
+  assert.ok(bodyLean(4, -2, 0).roll > 0);
+  assert.ok(bodyLean(0, 2, 5).roll === 0);
+  assert.ok(bodyLean(0, 2, 5).pitch === 0);
+});
+
+test('every soccer profile carries a Japanese annotated display name', async () => {
+  const { getPlayerProfile } = await import('../src/roster.js');
+  for (const c of countries) {
+    for (let slot = 0; slot < 11; slot++) {
+      const p = getPlayerProfile(c.id, slot);
+      assert.ok(p.nameJa && /[ぁ-んァ-ヶ一-龠]/.test(p.nameJa), `${c.id} slot ${slot} lacks a Japanese name`);
+      assert.ok(p.displayName.includes(p.nameJa) && p.displayName.includes(p.name));
+    }
+  }
+  assert.ok(getPlayerProfile('japan', 0).nameJa.includes('高橋'));
+  assert.ok(getPlayerProfile('brazil', 0).nameJa.includes('ルーカス'));
+});

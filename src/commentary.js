@@ -50,8 +50,8 @@ export class Commentary {
     const team = match.celebration?.team ?? match.restart?.team ?? match.setPiece?.team ?? player?.team ?? 0;
     const receiver = match.flight?.target != null ? match.players[match.flight.target] : null;
     return {
-      player: player?.profile?.name ?? `${(player?.slot ?? 0) + 1}番の選手`,
-      receiver: receiver?.profile?.name ?? '前方の味方',
+      player: player?.profile?.displayName ?? player?.profile?.name ?? `${(player?.slot ?? 0) + 1}番の選手`,
+      receiver: receiver?.profile?.displayName ?? receiver?.profile?.name ?? '前方の味方',
       team: teams[team].name, opponent: teams[1 - team].name,
       score: `${match.score[0]}対${match.score[1]}`,
       clock: `${String(Math.floor(match.time / 60)).padStart(2, '0')}:${String(Math.floor(match.time % 60)).padStart(2, '0')}`,

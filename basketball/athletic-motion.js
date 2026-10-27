@@ -6,7 +6,7 @@ export function jumpHeight(player) {
   const u=jump.elapsed/jump.duration;
   return Math.max(0,jump.height*4*u*(1-u));
 }
-export function runningBodyPose(phase,speed,guarding=false) {
+export function runningBodyPose(phase,speed,guarding=false,turnRate=0,accel=0) {
   const fast=clamp((speed-1.15)/1.6,0,1);
   const shuffle=guarding? .28 : 1;
   // The airborne step lifts the *whole* player, not just the torso;
@@ -14,8 +14,11 @@ export function runningBodyPose(phase,speed,guarding=false) {
   // Symmetric vertical oscillation: the body dips as well as rises with each
   // step, instead of only hopping upward on a half-rectified sine.
   const bounce=fast*shuffle*(.055+.05*Math.sin(phase*2));
-  const lean=fast*(guarding?.045:.115);
-  return {bounce,lean,fast};
+  // Acceleration pitches the torso: drive forward out of a start, sit back
+  // slightly when braking. Turning banks the body into the cut.
+  const lean=fast*(guarding?.045:.115)+clamp(accel,-6,6)*.012*(guarding?.3:1);
+  const bank=clamp(turnRate,-2.6,2.6)*.055*fast*(guarding?.35:1);
+  return {bounce,lean,fast,bank};
 }
 export function startJump(player,type='shot',height=.46,duration=.68) {
   if(player.jump && player.jump.elapsed<player.jump.duration*.85)return false;

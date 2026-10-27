@@ -20,6 +20,12 @@ const CALLS={
   '{player}、ここは自分で狙ってきました。',
   'フリーになった{player}、シュート！',
  ],
+ feint:[
+  '{player}、フェイントからクロスオーバー！ 抜いた！',
+  '左右に揺さぶった！ {player}がディフェンスを振り切る！',
+  '{player}のフェイクにディフェンスがつられた！ そのままドライブ！',
+  '鋭いクロスオーバー！ {player}が一歩先へ出た！',
+ ],
  dunk:[
   'リング下まで切り込んだ！ {player}、ダンク！',
   '{player}が高く跳ぶ！ 豪快なダンクを狙う！',
@@ -115,6 +121,10 @@ export function createBasketballCommentary(random=Math.random) {
     if(!lines)return '';
     const name=player=>{
       if(!player||!teams[player.team])return '選手';
+      // Commentary uses the Japanese form (kanji surname / katakana) when
+      // the squad provides one, falling back to the Roman surname.
+      const ja=teams[player.team].namesJa?.[player.slot];
+      if(ja)return ja.replace(/（.*$/,'').split(/[ ・]/)[0]||'選手';
       return teams[player.team].names[player.slot]?.split(' ').slice(-1)[0]||'選手';
     };
     const player=match?.players?.[details.player]??null;

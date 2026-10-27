@@ -6,11 +6,22 @@ import {dribblePoint,releasePoint,receivePoint,arcPoint,mixPoint,blend,controlli
   DRIBBLE_PERIOD,PASS_GATHER,PASS_CATCH,SHOT_GATHER,passFlightDuration} from './ball-motion.js';
 export { COURT } from './court.js';
 export const SQUADS = [
-  { id: 'tokyo', name: 'TOKYO BAY HAWKS', code: 'TKY', color: 0x85d6ed, trim: 0x172c43, names: ['Shota Takamura', 'Ryosuke Fujii', 'Kenta Mizuno', 'Yuki Morishita', 'Daichi Nagasawa'] },
-  { id: 'osaka', name: 'OSAKA CENTRAL BULLS', code: 'OSK', color: 0xefb969, trim: 0x4d2c22, names: ['Takuma Inoue', 'Keisuke Nishida', 'Masato Fujimoto', 'Hiroki Uemura', 'Naoya Ishibashi'] },
-  { id: 'seoul', name: 'SEOUL RIVER LIONS', code: 'SEL', color: 0xeaa8ab, trim: 0x522d44, names: ['Min-jun Park', 'Jae-hyun Kim', 'Ji-hoon Lee', 'Seung-woo Choi', 'Do-yun Kang'] },
-  { id: 'sydney', name: 'SYDNEY HARBOUR COMETS', code: 'SYD', color: 0xa6ddaf, trim: 0x244c3c, names: ['Liam Henderson', 'Oliver Mitchell', 'Ethan McKenzie', 'Jack Thompson', 'Noah Campbell'] },
+  { id: 'tokyo', name: 'TOKYO BAY HAWKS', code: 'TKY', color: 0x85d6ed, trim: 0x172c43, names: ['Shota Takamura', 'Ryosuke Fujii', 'Kenta Mizuno', 'Yuki Morishita', 'Daichi Nagasawa'],
+    namesJa: ['高村 翔太（タカムラ・ショウタ）', '藤井 涼介（フジイ・リョウスケ）', '水野 健太（ミズノ・ケンタ）', '森下 優樹（モリシタ・ユウキ）', '長澤 大地（ナガサワ・ダイチ）'] },
+  { id: 'osaka', name: 'OSAKA CENTRAL BULLS', code: 'OSK', color: 0xefb969, trim: 0x4d2c22, names: ['Takuma Inoue', 'Keisuke Nishida', 'Masato Fujimoto', 'Hiroki Uemura', 'Naoya Ishibashi'],
+    namesJa: ['井上 拓真（イノウエ・タクマ）', '西田 圭介（ニシダ・ケイスケ）', '藤本 正人（フジモト・マサト）', '上村 裕樹（ウエムラ・ヒロキ）', '石橋 直也（イシバシ・ナオヤ）'] },
+  { id: 'seoul', name: 'SEOUL RIVER LIONS', code: 'SEL', color: 0xeaa8ab, trim: 0x522d44, names: ['Min-jun Park', 'Jae-hyun Kim', 'Ji-hoon Lee', 'Seung-woo Choi', 'Do-yun Kang'],
+    namesJa: ['パク・ミンジュン', 'キム・ジェヒョン', 'イ・ジフン', 'チェ・スンウ', 'カン・ドユン'] },
+  { id: 'sydney', name: 'SYDNEY HARBOUR COMETS', code: 'SYD', color: 0xa6ddaf, trim: 0x244c3c, names: ['Liam Henderson', 'Oliver Mitchell', 'Ethan McKenzie', 'Jack Thompson', 'Noah Campbell'],
+    namesJa: ['リアム・ヘンダーソン', 'オリバー・ミッチェル', 'イーサン・マッケンジー', 'ジャック・トンプソン', 'ノア・キャンベル'] },
 ];
+// Name with its Japanese annotation (kanji/kana) alongside the Roman form.
+export function playerDisplayName(squad, slot) {
+  if (!squad) return '';
+  const ja = squad.namesJa?.[slot];
+  const roman = squad.names?.[slot] ?? '';
+  return ja ? `${ja} / ${roman}` : roman;
+}
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const FT_SETUP_SECONDS = 2.2;
@@ -526,6 +537,20 @@ export class BasketballMatch {
     if (!this.owner) return;
     const defender = this.nearestDefender(this.owner);
     if(this.ballControl?.mode==='secure')return;
+    const carrierNow = this.owner;
+    const rangeNow = dist(carrierNow, this.basket(this.possession));
+    // Arriving under the basket means finishing now — not after the next
+    // decision tick, by which time the carrier used to probe back out or pass.
+    if (rangeNow < 2.35) { this.shoot(); return; }
+    // Feint trigger: close defender, room to drive, enough clock to use it.
+    carrierNow.feintCooldown = Math.max(0, (carrierNow.feintCooldown || 0) - dt);
+    const gapNow = dist(carrierNow, defender);
+    if (!carrierNow.feint && carrierNow.feintCooldown <= 0 && !carrierNow.jump
+        && rangeNow > 2.8 && rangeNow < 9.5 && gapNow > 1.0 && gapNow < 3.4
+        && this.shotClock > 6 && this.random() < dt * .5) {
+      carrierNow.feint = {t: 0, dur: .78, side: this.random() < .5 ? -1 : 1, defender: defender.id, crossed: false};
+      carrierNow.feintCooldown = 3.2 + this.random() * 3;
+    }
     if (dist(defender, this.owner) < 1.55 && this.random() < dt * .12) {
       this.callFoul(defender.id, this.owner.id);
       return;
@@ -543,12 +568,16 @@ export class BasketballMatch {
     const openLook = range < 8.5 && gap > 1.75;
     const inclination = this.settings.style === 'perimeter' ? .59 : .47;
     const mature = this.possessionAge > 4.0;
-    const keepDriving=carrier.plan==='drive'&&range>1.55&&range<3.5&&gap>1.45&&!urgency;
-    const shouldShoot = !keepDriving&&(urgency || range < 1.85
+    const keepDriving=carrier.plan==='drive'&&range>=2.35&&range<3.5&&gap>1.45&&!urgency;
+    const shouldShoot = urgency || range < 2.35
       || (mature && range < 9 && this.random() <
-        (openLook ? inclination + .25 : inclination * .6)));
+        (openLook ? inclination + .25 : inclination * .6));
     if (shouldShoot) {
       this.shoot();
+    } else if (keepDriving) {
+      // Keep dribbling toward the rim. This branch previously fell through
+      // to a pass, so drivers under the basket gave the ball up instead.
+      this.decision = .45;
     } else if (range > 4.0 && gap > 1.5 && this.shotClock > 8
         && this.random() < .43) {
       // Keep dribbling for a short, individual drive rather than passing on
@@ -576,6 +605,7 @@ export class BasketballMatch {
       jumps:this.players.map(p=>p.jump?{...p.jump}:null),
       ball:{...this.ball},ballControl:this.ballControl?{...this.ballControl}:null,
       players: this.players.map(p => ({id: p.id, team: p.team, x: p.x, z: p.z,
-        speed: p.speed, action: p.action, intent: p.intent, targetX: p.targetX, targetZ: p.targetZ}))};
+        speed: p.speed, action: p.action, intent: p.intent, targetX: p.targetX, targetZ: p.targetZ,
+        feint: p.feint ? {t: p.feint.t, side: p.feint.side, crossed: p.feint.crossed} : null, beaten: p.beaten || 0}))};
   }
 }

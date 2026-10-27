@@ -6,6 +6,17 @@ export function strideFrequency(speed) {
   return speed < .08 ? 0 : .7 + Math.min(speed, 6.5) * .19;
 }
 
+// Torso pitch/roll from locomotion state: accelerating leans the body
+// forward, braking lets it sit back, and turning banks it into the turn
+// (more strongly at speed). Pure and unit-testable; posePlayer applies it.
+export function bodyLean(speed, turnRate = 0, accel = 0) {
+  const run = smooth(speed / .8);
+  return {
+    pitch: clamp(accel, -7, 7) * .014 * run,
+    roll: -clamp(turnRate, -3, 3) * (.012 + Math.min(speed, 6) * .006) * run,
+  };
+}
+
 export function gaitPose(phase, speed, scale = 1) {
   const moving = smooth(speed / .8);
   const sprint = smooth((speed - 1.1) / 3.4);

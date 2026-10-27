@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { getPlayerProfile } from './roster.js';
-import { gaitPose } from './gait.js';
+import { gaitPose, bodyLean } from './gait.js';
 
 const material = color => new THREE.MeshStandardMaterial({ color, roughness: .85, flatShading: true });
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
@@ -61,12 +61,18 @@ export function createPlayer(p, team) {
   const skin = material(profile.skin);
   const sock = material(p.slot === 0 ? 0x364c3b : team.shirt);
   const boot = material(p.id % 3 === 0 ? 0xf49b66 : 0x24302b);
+  const trim = material(p.slot === 0 ? 0xf4f1e5 : team.shorts);
   const pelvis = joint(g, 0, HIP_HEIGHT);
   pelvis.scale.x = profile.build;
-  segment(pelvis, .19, .20, .18, shorts, .035).scale.z = .68;
+  segment(pelvis, .165, .175, .18, shorts, .035).scale.z = .62;
   const torso = joint(pelvis, 0, .08);
-  // Tapered shoulders and waist, a small head, and long articulated legs: ~7.2 heads tall.
-  segment(torso, .235, .165, .52, kit, .27).scale.z = .64;
+  // Slim, tapered torso: narrower waist and shoulders, a small head, and
+  // long articulated legs: ~7.2 heads tall.
+  segment(torso, .205, .14, .52, kit, .27).scale.z = .60;
+  // Kit detailing: a chest band and collar in the trim colour break up the
+  // plain cylinder and read as a designed shirt at broadcast distance.
+  segment(torso, .175, .168, .055, trim, .145).scale.z = .615;
+  segment(torso, .082, .092, .05, trim, .545).scale.z = .8;
   segment(torso, .057, .07, .095, skin, .575);
   const head = joint(torso, 0, .72);
   const skull = mesh(head, new THREE.IcosahedronGeometry(.125, 1), skin, 0, 0);
@@ -75,21 +81,21 @@ export function createPlayer(p, team) {
   mesh(head, new THREE.IcosahedronGeometry(.027, 0), skin, 0, -.015, .111);
   const legs = [], arms = [];
   for (const side of [-1, 1]) {
-    const hip = joint(pelvis, side * .105, 0);
-    segment(hip, .11, .093, .23, shorts);
-    segment(hip, .088, .062, .23, p.role === 'coach' ? shorts : skin, -.345);
+    const hip = joint(pelvis, side * .092, 0);
+    segment(hip, .095, .08, .23, shorts);
+    segment(hip, .078, .055, .23, p.role === 'coach' ? shorts : skin, -.345);
     const knee = joint(hip, 0, -THIGH);
-    mesh(knee, new THREE.IcosahedronGeometry(.066, 1), skin, 0, -.005);
-    segment(knee, .069, .043, SHIN, p.role === 'coach' ? shorts : sock);
+    mesh(knee, new THREE.IcosahedronGeometry(.06, 1), skin, 0, -.005);
+    segment(knee, .06, .038, SHIN, p.role === 'coach' ? shorts : sock);
     const ankle = joint(knee, 0, -SHIN);
     const shoe = mesh(ankle, new THREE.IcosahedronGeometry(.1, 1), boot, 0, -.04, .065);
-    shoe.scale.set(.7, .55, 1.45);
+    shoe.scale.set(.66, .52, 1.45);
     legs.push({ hip, knee, ankle });
-    const shoulder = joint(torso, side * .235, .465);
-    segment(shoulder, .09, .075, .15, kit);
-    segment(shoulder, .064, .048, .15, skin, -.225);
+    const shoulder = joint(torso, side * .205, .465);
+    segment(shoulder, .078, .064, .15, kit);
+    segment(shoulder, .056, .042, .15, skin, -.225);
     const elbow = joint(shoulder, 0, -.30);
-    segment(elbow, .052, .034, .26, skin);
+    segment(elbow, .046, .03, .26, skin);
     const hand = mesh(elbow, new THREE.IcosahedronGeometry(p.slot===0&&!p.role?.length ? .07 : .052, 1), p.slot===0&&!p.role?.length ? material(0xe7eddd) : skin, 0, -.285);
     hand.scale.set(.8, 1.25, .65);
     arms.push({ shoulder, elbow, side });
@@ -103,7 +109,7 @@ export function createPlayer(p, team) {
     ctx.textAlign = 'center';
     ctx.fillText(String(p.slot + 1), 32, 48);
     const number = mesh(torso, new THREE.PlaneGeometry(.23, .25),
-      new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true }), 0, .30, -.145);
+      new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true }), 0, .30, -.112);
     number.rotation.y = Math.PI;
   }
   const heightScale = profile.height / 195.5;
@@ -143,9 +149,10 @@ export function posePlayer(model, p) {
   g.rotation.set(0, p.angle, 0, 'YXZ');
   pelvis.rotation.y = Math.sin(phase) * .025 * run;
   pelvis.rotation.z = Math.cos(phase) * .012 * run;
-  torso.rotation.x = (.055 + gait.sprint * .12) * run + (p.action === 'shield' ? .12 : .20) * contest - chestTrap * .24 + header * .32 + stumble * .35;
+  const lean = bodyLean(speed, p.turnRate || 0, p.accel || 0);
+  torso.rotation.x = (.055 + gait.sprint * .12) * run + lean.pitch + (p.action === 'shield' ? .12 : .20) * contest - chestTrap * .24 + header * .32 + stumble * .35;
   torso.rotation.y = -Math.sin(phase) * .10 * run + (p.action === 'shield' ? .34 * contest : 0);
-  torso.rotation.z = Math.sin(phase) * .015 * run + stumble * .15 - clamp(p.turnRate || 0, -3, 3) * speed * .008;
+  torso.rotation.z = Math.sin(phase) * .015 * run + stumble * .15 + lean.roll;
   head.rotation.x = -torso.rotation.x * .65 + header * .25;
   head.rotation.y = -torso.rotation.y * .5;
   for (let i = 0; i < 2; i++) {
