@@ -33,10 +33,10 @@
         <canvas id="minimap" width="232" height="132" aria-label="コート上の選手位置"></canvas>
         <div class="overlay-camera arena-controls" aria-label="カメラと音声">
   <div class="overlay-camera-title"><span>CAMERA / SOUND</span><button id="fullscreen-inview" class="inview-fullscreen" aria-label="全画面表示を終了" title="拡大・縮小">縮小 ⤡</button></div>
-  <div class="camera-options"><button data-camera="broadcast" class="active" aria-label="中継カメラ">中継</button><button data-camera="follow" aria-label="追従カメラ">追従</button><button data-camera="tactical" aria-label="俯瞰カメラ">俯瞰</button><button data-camera="free" aria-label="自由カメラ">自由</button></div>
+  <div class="camera-options"><button data-camera="broadcast" aria-label="中継カメラ">中継</button><button data-camera="follow" class="active" aria-label="追従カメラ">追従</button><button data-camera="tactical" aria-label="俯瞰カメラ">俯瞰</button><button data-camera="free" aria-label="自由カメラ">自由</button></div>
   <div class="arena-audio-controls"><button id="audio-enable-inview" class="sound-toggle inview-audio" aria-label="音声を開始する">♪ 音声開始</button><button id="crowd-toggle" class="sound-toggle" aria-label="観客音と効果音を切り替える" aria-pressed="false">効果音 OFF</button><button id="voice-toggle" class="sound-toggle" aria-label="実況読み上げを切り替える" aria-pressed="false">実況 OFF</button></div>
-  <p id="camera-help" hidden>コート全体を捉えた中継アングル。</p>
-</div><div class="camera-mark"><i></i><span id="camera-label">BROADCAST CAMERA</span></div>
+  <p id="camera-help" hidden>ボールの動きに合わせてカメラが追従。</p>
+</div><div class="camera-mark"><i></i><span id="camera-label">BALL FOLLOW</span></div>
         <div class="commentary" id="commentary">ティップオフを待っています。</div>
         <div id="audio-status" class="audio-status" role="status" aria-live="polite">音声はOFFです。上の「音声を開始」を押してください。</div>
         <div id="loading" class="loading">アリーナを準備しています…</div>

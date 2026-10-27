@@ -243,7 +243,7 @@ export class ArenaScene {
     this.controls.maxDistance = 58;
     this.controls.maxPolarAngle = Math.PI * .49;
     this.controls.enabled = false;
-    this.mode = 'broadcast';
+    this.mode = 'follow';
     this.scene.add(new THREE.HemisphereLight(0xeaf5ff, 0x483326, 2.2));
     for (const x of [-11, 11]) for (const z of [-9, 9]) {
       const light = new THREE.SpotLight(0xffffff, 180, 75, Math.PI / 3.5, .65);
