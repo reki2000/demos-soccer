@@ -11,7 +11,9 @@ export function runningBodyPose(phase,speed,guarding=false) {
   const shuffle=guarding? .28 : 1;
   // The airborne step lifts the *whole* player, not just the torso;
   // legs and hips now leave the floor together at running speed.
-  const bounce=fast*shuffle*(.048+.062*Math.max(0,Math.sin(phase*2)));
+  // Symmetric vertical oscillation: the body dips as well as rises with each
+  // step, instead of only hopping upward on a half-rectified sine.
+  const bounce=fast*shuffle*(.055+.05*Math.sin(phase*2));
   const lean=fast*(guarding?.045:.115);
   return {bounce,lean,fast};
 }

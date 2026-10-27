@@ -18,7 +18,9 @@ export function guardPose(match, player) {
   const guarding = ['contain','help','deny','mark'].includes(role);
   const contestingShot = !!shot && separation < 3.8;
   const clock = match.elapsed ?? 0;
-  const sway = Math.sin(clock * 3.1 + player.id * 1.9) * .09;
+  // Each defender sways at their own tempo and amplitude so the defensive
+  // line doesn't pulse like one machine.
+  const sway = Math.sin(clock * (2.6 + (player.id % 5) * .35) + player.id * 1.9) * (.07 + (player.id % 3) * .02);
   const ballSide = (handler ?? shot)?.z >= player.z ? 1 : -1;
   const activeHand = ballSide < 0 ? 0 : 1;
   // Arms have independent shoulder/elbow pivots; a raised arm has shoulder X
@@ -35,7 +37,7 @@ export function guardPose(match, player) {
     // Wide stance and two active hands prevent a constant T-pose.
     for (const [i, arm] of arms.entries()) {
       arm.shoulderX = -.95 - close * .35 + (i === activeHand ? -.24 : 0) + sway;
-      arm.shoulderZ = (i ? 1 : -1) * (.67 + .07 * Math.sin(clock * 2.7 + player.id));
+      arm.shoulderZ = (i ? 1 : -1) * (.67 + .07 * Math.sin(clock * (2.4 + (player.id % 4) * .3) + player.id * 1.3));
       arm.elbowX = -.55;
     }
   } else if (role === 'deny') {
