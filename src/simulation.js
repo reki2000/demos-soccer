@@ -261,6 +261,7 @@ export class Match {
       p.angle = Math.atan2(dx, dz);
     }
     p.phase += dt * Math.PI * 2 * strideFrequency(p.speed);
+    p.animTime = (p.animTime || 0) + dt;
     return gap < .25;
   }
 
@@ -616,6 +617,7 @@ export class Match {
         p.angle += delta * (1 - Math.exp(-dt * 12));
       }
       p.phase += dt * Math.PI * 2 * strideFrequency(actualSpeed);
+      p.animTime = (p.animTime || 0) + dt;
     });
   }
 

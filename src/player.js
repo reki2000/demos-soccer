@@ -127,6 +127,18 @@ export function posePlayer(model, p) {
   const stumble = p.action === 'stumble' ? absorb : 0;
   // Lower the hips in a run; two small vertical oscillations per complete stride.
   const bounce = gait.hipOffset;
+  // Arm swing trails the thigh by a short phase lag instead of mirroring it
+  // exactly, like a real arm swing lagging behind the leg.
+  const ARM_LAG = .6;
+  const gaitLag = gaitPose(phase - ARM_LAG, speed, model.heightScale);
+  const lagHipAngle = i => {
+    const lf = gaitLag.feet[i];
+    const fz = lf.z * (p.strideDirection ?? 1), fy = lf.y;
+    const down = HIP_HEIGHT + bounce - fy;
+    const reach = clamp(Math.hypot(down, fz), .15, THIGH + SHIN - .003);
+    return Math.atan2(-fz, down) - Math.acos(clamp(
+      (THIGH * THIGH + reach * reach - SHIN * SHIN) / (2 * THIGH * reach), -1, 1));
+  };
   g.position.set(p.x, .045 + (bounce + (p.jump || 0)) * model.heightScale, p.z);
   g.rotation.set(0, p.angle, 0, 'YXZ');
   pelvis.rotation.y = Math.sin(phase) * .025 * run;
@@ -161,9 +173,9 @@ export function posePlayer(model, p) {
     legs[i].hip.rotation.z = (i === 0 ? -.035 : .035) * contest;
     legs[i].knee.rotation.x = kneeAngle;
     legs[i].ankle.rotation.x = -(hipAngle + kneeAngle) + foot.pitch;
-    const armPhase = phase + i * Math.PI;
-    // Oppose the thigh rather than an unrelated sine wave, preserving natural coordination.
-    arms[i].shoulder.rotation.x = -hipAngle * (.42 + gait.sprint * .16) * run - .18 * run - contest * .15;
+    const armPhase = phase - ARM_LAG + i * Math.PI;
+    // Oppose the thigh with a natural lag rather than an unrelated sine wave, preserving natural coordination.
+    arms[i].shoulder.rotation.x = -lagHipAngle(i) * (.42 + gait.sprint * .16) * run - .18 * run - contest * .15;
     arms[i].shoulder.rotation.y = arms[i].side * .1 * run;
     arms[i].shoulder.rotation.z = arms[i].side * (.08 + .12 * run + .65 * contest + chestTrap * .48 + header * .28);
     arms[i].elbow.rotation.x = -.12 - (.45 + .6 * gait.sprint + Math.sin(armPhase) * .12) * run - .35 * contest - chestTrap * .5;
@@ -185,6 +197,18 @@ export function posePlayer(model, p) {
       arms[i].shoulder.rotation.x = -2.6 + actionProgress * 1.5;
       arms[i].shoulder.rotation.z = arms[i].side * .08;
       arms[i].elbow.rotation.x = -.8 + actionProgress * .5;
+    }
+  }
+  // Idle life: breathing, weight shifting and small arm/head drift so
+  // standing players never freeze like mannequins.
+  const idleT = p.animTime || 0, idleAmt = 1 - run;
+  if (idleAmt > 0) {
+    torso.rotation.x += Math.sin(idleT * 1.5) * .008 * idleAmt;
+    torso.rotation.z += Math.sin(idleT * .8 + 1.2) * .008 * idleAmt;
+    head.rotation.y += Math.sin(idleT * .45 + (p.id || 0) * 1.7) * .06 * idleAmt;
+    for (let i = 0; i < 2; i++) {
+      arms[i].shoulder.rotation.z += arms[i].side * Math.sin(idleT * 1.1 + i * 2.4) * .025 * idleAmt;
+      arms[i].elbow.rotation.x += Math.sin(idleT * 1.3 + i * 1.1) * .03 * idleAmt;
     }
   }
   const fall = p.fallAmount || 0;
