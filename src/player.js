@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { getPlayerProfile } from './roster.js';
 import { gaitPose, bodyLean } from './gait.js';
+import { addFaceFeatures } from './face.js';
 
 const material = color => new THREE.MeshStandardMaterial({ color, roughness: .85, flatShading: true });
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
@@ -75,27 +76,12 @@ function addHair(head, profile) {
   }
 }
 
-// Eyes (white + pupil), brows, a shaped nose, mouth and ears, so faces read
-// as faces from the broadcast camera instead of a bare faceted ball.
+// Eyes, brows, nose, mouth and ears whose shapes follow the player's
+// face type (see face.js): almond/narrow/hooded/deep/round/wide eyes,
+// straight/thin/thick/arched/angled brows, varied iris colours, and
+// nose/lip proportions with regional character.
 function addFace(head, profile, skin) {
-  const dark = material(0x201914);
-  const white = material(0xf4efe6);
-  const lip = material(0x8a4a3c);
-  const hairMaterial = material(profile.hairColor);
-  for (const side of [-1, 1]) {
-    const eyeWhite = mesh(head, new THREE.SphereGeometry(.02, 8, 6), white, side * .044, .018, .104);
-    eyeWhite.scale.set(1, 1.2, .55);
-    const pupil = mesh(head, new THREE.SphereGeometry(.0105, 8, 6), dark, side * .044, .018, .119);
-    pupil.scale.set(1, 1.25, .5);
-    const brow = mesh(head, new THREE.BoxGeometry(.04, .009, .012), hairMaterial, side * .045, .054, .11);
-    brow.rotation.z = -side * .18;
-    const ear = mesh(head, new THREE.SphereGeometry(.026, 8, 6), skin, side * .104, -.006, 0);
-    ear.scale.set(.45, 1, .72);
-  }
-  const nose = mesh(head, new THREE.SphereGeometry(.024, 8, 6), skin, 0, -.018, .117);
-  nose.scale.set(.75, 1.3, .95);
-  const mouth = mesh(head, new THREE.BoxGeometry(.042, .009, .012), lip, 0, -.07, .103);
-  mouth.rotation.x = .1;
+  addFaceFeatures(head, material, profile.face, skin, material(profile.hairColor), 1);
 }
 
 export function createPlayer(p, team) {

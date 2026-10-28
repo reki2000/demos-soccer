@@ -7,11 +7,11 @@ import {shadowAppearance} from './shadows.js';
 import { runningLegPose } from './leg-gait.js';
 import {jumpHeight,runningBodyPose} from './athletic-motion.js';
 import {makeSidelines} from './sideline.js';
+import {addFaceFeatures, faceFor, SQUAD_FACE_POOLS} from '../src/face.js';
 import {BALL_RADIUS,PASS_GATHER,PASS_CATCH,SHOT_GATHER,blend as ease} from './ball-motion.js';
 
 const material = (color, roughness = .8) => new THREE.MeshStandardMaterial({color, roughness, flatShading: true});
 const lineMaterial = new THREE.LineBasicMaterial({color: 0xf9e9c9});
-const skinColors = [0xf0c6a3, 0xd9a27b, 0xb7774f, 0x885436, 0x64412d];
 function mesh(parent, geometry, mat, x = 0, y = 0, z = 0) {
   const result = new THREE.Mesh(geometry, mat);
   result.position.set(x, y, z);
@@ -70,24 +70,8 @@ function woodTexture() {
 }
 const HAIR_STYLES_B = ['crop','curls','mohawk','afro','sidepart','long','messy','buzz','tied','undercut','shaved'];
 const hairColorsB = [0x1b2026, 0x3b2d22, 0x775139, 0x9b7449, 0x7a2e1d, 0x8a8d90];
-function addFaceBasketball(head, skin, hair) {
-  const dark = material(0x201914);
-  const white = material(0xf4efe6);
-  const lip = material(0x8a4a3c);
-  for (const side of [-1, 1]) {
-    const eyeWhite = mesh(head, new THREE.SphereGeometry(.023, 8, 6), white, side * .051, .021, .121);
-    eyeWhite.scale.set(1, 1.2, .55);
-    const pupil = mesh(head, new THREE.SphereGeometry(.012, 8, 6), dark, side * .051, .021, .138);
-    pupil.scale.set(1, 1.25, .5);
-    const brow = mesh(head, new THREE.BoxGeometry(.046, .01, .013), hair, side * .052, .062, .127);
-    brow.rotation.z = -side * .18;
-    const ear = mesh(head, new THREE.SphereGeometry(.03, 8, 6), skin, side * .121, -.007, 0);
-    ear.scale.set(.45, 1, .72);
-  }
-  const nose = mesh(head, new THREE.SphereGeometry(.027, 8, 6), skin, 0, -.021, .136);
-  nose.scale.set(.75, 1.3, .95);
-  mesh(head, new THREE.BoxGeometry(.048, .01, .013), lip, 0, -.081, .119);
-}
+// Face types (eye/brow shapes, iris, nose/lips, skin) come from the shared
+// face.js pools per club, same system as the soccer squads.
 function addHairBasketball(head, style, hair) {
   if (style === 'mohawk') {
     for (let i = 0; i < 5; i++) {
@@ -139,7 +123,9 @@ export function createAthlete(player, team) {
   torso.position.y = .99;
   const main = material(team.color);
   const trim = material(team.trim);
-  const skin = material(skinColors[(player.id * 3 + 1) % skinColors.length]);
+  const faceSeed = [...(team.id ?? 'tokyo')].reduce((a, c) => a * 31 + c.charCodeAt(0), 7) + player.id * 31 + player.slot * 7;
+  const face = faceFor(SQUAD_FACE_POOLS[team.id] ?? SQUAD_FACE_POOLS.tokyo, faceSeed);
+  const skin = material(face.skin);
   const hair = material(hairColorsB[(player.id * 5 + 2) % hairColorsB.length]);
   const shoe = material(player.slot % 2 ? 0xf3f0e6 : 0x27394b);
   group.add(torso);
@@ -163,7 +149,7 @@ export function createAthlete(player, team) {
   const skull = mesh(head, new THREE.SphereGeometry(.145, 14, 12), skin, 0, 0, 0);
   skull.scale.set(.88, 1.06, .92);
   addHairBasketball(head, HAIR_STYLES_B[(player.id * 7 + player.slot * 3) % HAIR_STYLES_B.length], hair);
-  addFaceBasketball(head, skin, hair);
+  addFaceFeatures(head, material, face, skin, hair, 1.16);
   const legs = [], arms = [];
   for (const side of [-1, 1]) {
     const thigh = new THREE.Group();

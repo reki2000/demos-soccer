@@ -1,3 +1,5 @@
+import { faceFor, COUNTRY_FACE_POOLS } from './face.js';
+
 // Fictional squads; stable identities survive match resets and formation changes.
 const names = {
   japan: ['Ren Takahashi','Kaito Mori','Yuto Hayashi','Sota Nakamura','Haru Ishikawa','Riku Aoki','Daichi Fujita','Yuki Okada','Shun Mizuno','Akira Sato','Kei Matsuda'],
@@ -50,6 +52,13 @@ export function getPlayerProfile(country, slot) {
     pace: .92 + random() * .16,
     strength: Math.round(60 + (build - .9) * 100),
   };
+  // Face with regional character (eye/brow shapes, iris colour, nose and
+  // lip proportions, coherent skin tone), derived from a separate seed so
+  // the traits above stay exactly as they were.
+  let faceSeed = 2166136261;
+  for (const ch of `${key}:face`) faceSeed = Math.imul(faceSeed ^ ch.charCodeAt(0), 16777619) >>> 0;
+  profile.face = faceFor(COUNTRY_FACE_POOLS[country] ?? COUNTRY_FACE_POOLS.japan, faceSeed);
+  profile.skin = profile.face.skin;
   cache.set(key, profile);
   return profile;
 }

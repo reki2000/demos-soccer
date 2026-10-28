@@ -5,7 +5,7 @@ import { Commentary } from '../src/commentary.js';
 import { COMMENTARY_BANK, COMMENTARY_COUNT } from '../src/commentary-lines.js';
 import { Highlights } from '../src/highlights.js';
 import { Match, countries } from '../src/simulation.js';
-import { assignProfiles } from '../src/roster.js';
+import { assignProfiles, getPlayerProfile } from '../src/roster.js';
 import { createPlayer, posePlayer } from '../src/player.js';
 import { createStandShell } from '../src/stand-shell.js';
 import { StadiumEnvironment, WEATHER } from '../src/environment.js';
@@ -128,4 +128,22 @@ test('analyst follows major calls with a second-voice explanation',()=>{
   assert.equal(c.current?.role,'analysis');
   const analysis=captions.find(x=>x.role==='analysis');
   assert.ok(analysis&&!/[{}]/.test(analysis.text),analysis?.text);
+});
+
+test('faces carry regional character: eye, brow, iris and skin vary by country',()=>{
+  const countriesIds=['japan','brazil','france','argentina','england','germany','spain','portugal'];
+  const types=new Set(),eyes=new Set(),brows=new Set(),iris=new Set();
+  for(const id of countriesIds)for(let s=0;s<11;s++){
+    const p=getPlayerProfile(id,s);
+    types.add(p.face.type);eyes.add(p.face.eyeShape);brows.add(p.face.browShape);iris.add(p.face.iris);
+    assert.equal(p.skin,p.face.skin);
+  }
+  assert.ok(types.size>=4,[...types]);
+  assert.ok(eyes.size>=5,[...eyes]);
+  assert.ok(brows.size>=4,[...brows]);
+  assert.ok(iris.size>=4);
+  const japan=[...Array(11)].map((_,s)=>getPlayerProfile('japan',s));
+  assert.ok(japan.every(p=>p.face.type==='eastAsian'));
+  const france=[...Array(11)].map((_,s)=>getPlayerProfile('france',s));
+  assert.ok(new Set(france.map(p=>p.face.type)).size>=2);
 });

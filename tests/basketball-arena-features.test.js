@@ -200,7 +200,7 @@ test('basketball default camera is the ball-follow mode',()=>{
 
 test('basketball athletes have faces, varied hair and a hip-pivot torso',()=>{
   const scene=readFileSync(new URL('../basketball/scene.js',import.meta.url),'utf8');
-  assert.match(scene,/addFaceBasketball/);
+  assert.match(scene,/addFaceFeatures/);
   assert.match(scene,/addHairBasketball/);
   assert.match(scene,/HAIR_STYLES_B = \[[^\]]*'mohawk'[^\]]*'afro'/);
   assert.match(scene,/torso\.position\.y = \.99/);
