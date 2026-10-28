@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { strideFrequency } from './gait.js';
 import { createPlayer, posePlayer, disposePlayer } from './player.js';
+import { getPlayerProfile } from './roster.js';
 
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 const mat = (color, options = {}) => new THREE.MeshStandardMaterial({ color, roughness: .85, flatShading: true, ...options });
@@ -11,9 +12,16 @@ function box(parent, w, h, d, material, x, y, z) {
   parent.add(mesh);
   return mesh;
 }
+// Referees are the one group allowed to look older: they keep grey or
+// silver hair, while players, reserves and coaches draw from the young
+// hair-colour pool in roster.js.
+const REFEREE_HAIR = [0x8a8d90, 0xd9d3c3, 0x6e6e6e];
 function actor(id, team, kit, role) {
   const state = { id, slot: 1, team, x: 0, z: 0, vx: 0, vz: 0, phase: id, running: 0,
     angle: Math.PI, action: 'idle', contest: 0, jump: 0, role };
+  if (role === 'referee') {
+    state.profile = { ...getPlayerProfile('japan', id % 18), hairColor: REFEREE_HAIR[id % REFEREE_HAIR.length] };
+  }
   return { state, model: createPlayer(state, kit) };
 }
 

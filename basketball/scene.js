@@ -69,7 +69,7 @@ function woodTexture() {
   return texture;
 }
 const HAIR_STYLES_B = ['short','buzz','mash','sidepart','centerpart','slickback','wavy','curly','ponytail','long','afro'];
-const hairColorsB = [0x1b2026, 0x3b2d22, 0x775139, 0x9b7449, 0x7a2e1d, 0x8a8d90];
+const hairColorsB = [0x1b2026, 0x3b2d22, 0x775139, 0x9b7449, 0x7a2e1d]; // athletes are in their 20s-30s: no grey hair
 // Face types (eye/brow shapes, iris, nose/lips, skin) and hairstyles come
 // from the shared face.js system, same as the soccer squads.
 export function createAthlete(player, team) {
