@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { getPlayerProfile } from './roster.js';
 import { gaitPose, bodyLean } from './gait.js';
-import { addFaceFeatures } from './face.js';
+import { buildImportedHead } from './face.js';
 
 const material = color => new THREE.MeshStandardMaterial({ color, roughness: .85, flatShading: true });
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
@@ -29,59 +29,17 @@ function segment(parent, top, bottom, length, mat, y = -length / 2) {
   return mesh(parent, new THREE.CylinderGeometry(top, bottom, length, 8), mat, 0, y);
 }
 
-function addHair(head, profile) {
-  const hairMaterial = material(profile.hairColor);
-  const style = profile.hairstyle;
-  if (style === 'mohawk') {
-    // A central ridge of spikes from forehead to crown; no side cap.
-    for (let i = 0; i < 5; i++) {
-      const spike = mesh(head, new THREE.ConeGeometry(.026, .085, 5), hairMaterial, 0, .125, .075 - i * .038);
-      spike.rotation.x = -.25 + i * .1;
-    }
-    return;
-  }
-  // The cap sits just outside the skull so it reads as hair, not a dent.
-  const cap = mesh(head, new THREE.SphereGeometry(.129, 10, 6, 0, Math.PI * 2, 0, Math.PI * .55), hairMaterial, 0, .028, -.008);
-  cap.scale.set(.88, style === 'buzz' || style === 'shaved' ? .78 : .97, .95);
-  if (style === 'shaved') cap.scale.y = .66;
-  if (style === 'curls' || style === 'afro') {
-    const n = style === 'afro' ? 16 : 12, r = style === 'afro' ? .052 : .034;
-    for (let i = 0; i < n; i++) {
-      const a = i / n * Math.PI * 2;
-      mesh(head, new THREE.IcosahedronGeometry(r, 1), hairMaterial, Math.cos(a) * .087, .09 + (i % 3) * .014, Math.sin(a) * .08);
-    }
-    if (style === 'afro') mesh(head, new THREE.IcosahedronGeometry(.085, 1), hairMaterial, 0, .115, 0).scale.set(1, .8, 1);
-  } else if (style === 'sidepart') {
-    const fringe = mesh(head, new THREE.IcosahedronGeometry(.09, 0), hairMaterial, -.035, .12, .025);
-    fringe.scale.set(1, .48, .9);
-    fringe.rotation.z = -.3;
-  } else if (style === 'tied') {
-    mesh(head, new THREE.IcosahedronGeometry(.055, 1), hairMaterial, 0, .075, -.135);
-    mesh(head, new THREE.IcosahedronGeometry(.04, 1), hairMaterial, 0, .018, -.155);
-  } else if (style === 'crop' || style === 'messy') {
-    const n = style === 'messy' ? 7 : 4;
-    for (let i = 0; i < n; i++) {
-      const tuft = mesh(head, new THREE.ConeGeometry(.032, .066, 5), hairMaterial, -.055 + i * (style === 'messy' ? .02 : .035), .14, .035 - (style === 'messy' ? (i % 3) * .02 : 0));
-      tuft.rotation.z = -.25 + (style === 'messy' ? (i % 4) * .16 : 0);
-    }
-  } else if (style === 'long') {
-    const back = mesh(head, new THREE.BoxGeometry(.17, .17, .045), hairMaterial, 0, -.045, -.108);
-    back.rotation.x = .08;
-  } else if (style === 'undercut') {
-    cap.scale.y = .82;
-    for (let i = 0; i < 3; i++) {
-      const tuft = mesh(head, new THREE.ConeGeometry(.03, .06, 5), hairMaterial, -.03 + i * .03, .145, .03);
-      tuft.rotation.z = -.35;
-    }
-  }
-}
-
-// Eyes, brows, nose, mouth and ears whose shapes follow the player's
-// face type (see face.js): almond/narrow/hooded/deep/round/wide eyes,
-// straight/thin/thick/arched/angled brows, varied iris colours, and
-// nose/lip proportions with regional character.
-function addFace(head, profile, skin) {
-  addFaceFeatures(head, material, profile.face, skin, material(profile.hairColor), 1);
+// The head is the imported CC0 base model (face.js / head-model.js),
+// morphed per player: face type drives jaw, eyes, brows, nose and lips,
+// and the hairstyle picks one of the model's hair variants. A stable
+// per-player seed keeps each face's jitter identical across rebuilds.
+function addHead(head, profile) {
+  let seed = 2166136261;
+  for (const ch of profile.name ?? '') seed = Math.imul(seed ^ ch.charCodeAt(0), 16777619) >>> 0;
+  buildImportedHead(head, material, {
+    face: profile.face, skinTone: profile.skin, hairColor: profile.hairColor,
+    hairstyle: profile.hairstyle, seed, f: 1,
+  });
 }
 
 export function createPlayer(p, team) {
@@ -103,14 +61,13 @@ export function createPlayer(p, team) {
   // Kit detailing: a chest band and collar in the trim colour break up the
   // plain cylinder and read as a designed shirt at broadcast distance.
   segment(torso, .175, .168, .055, trim, .145).scale.z = .615;
-  segment(torso, .082, .092, .05, trim, .545).scale.z = .8;
-  segment(torso, .057, .07, .095, skin, .575);
+  mesh(torso, new THREE.CylinderGeometry(.082, .092, .05, 8), trim, 0, .545, -.04).scale.z = .8;
   const head = joint(torso, 0, .72);
-  // Smooth sphere skull: the old faceted icosahedron read as a dented forehead.
-  const skull = mesh(head, new THREE.SphereGeometry(.125, 14, 12), skin, 0, 0);
-  skull.scale.set(.84, 1.05, .92);
-  addHair(head, profile);
-  addFace(head, profile, skin);
+  // The imported head is cut at the jaw line; a slim neck cylinder on
+  // the torso bridges the collar to the jaw (the model's own long,
+  // slanted neck looked wrong against the stylised body).
+  mesh(torso, new THREE.CylinderGeometry(.05, .05, .16, 8), skin, 0, .60, -.04);
+  addHead(head, profile);
   const legs = [], arms = [];
   for (const side of [-1, 1]) {
     const hip = joint(pelvis, side * .092, 0);

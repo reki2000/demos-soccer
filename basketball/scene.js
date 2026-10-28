@@ -7,7 +7,7 @@ import {shadowAppearance} from './shadows.js';
 import { runningLegPose } from './leg-gait.js';
 import {jumpHeight,runningBodyPose} from './athletic-motion.js';
 import {makeSidelines} from './sideline.js';
-import {addFaceFeatures, faceFor, SQUAD_FACE_POOLS} from '../src/face.js';
+import {buildImportedHead, faceFor, SQUAD_FACE_POOLS} from '../src/face.js';
 import {BALL_RADIUS,PASS_GATHER,PASS_CATCH,SHOT_GATHER,blend as ease} from './ball-motion.js';
 
 const material = (color, roughness = .8) => new THREE.MeshStandardMaterial({color, roughness, flatShading: true});
@@ -68,52 +68,10 @@ function woodTexture() {
   texture.anisotropy = 8;
   return texture;
 }
-const HAIR_STYLES_B = ['crop','curls','mohawk','afro','sidepart','long','messy','buzz','tied','undercut','shaved'];
-const hairColorsB = [0x1b2026, 0x3b2d22, 0x775139, 0x9b7449, 0x7a2e1d, 0x8a8d90];
-// Face types (eye/brow shapes, iris, nose/lips, skin) come from the shared
-// face.js pools per club, same system as the soccer squads.
-function addHairBasketball(head, style, hair) {
-  if (style === 'mohawk') {
-    for (let i = 0; i < 5; i++) {
-      const spike = mesh(head, new THREE.ConeGeometry(.03, .098, 5), hair, 0, .145, .087 - i * .044);
-      spike.rotation.x = -.25 + i * .1;
-    }
-    return;
-  }
-  const cap = mesh(head, new THREE.SphereGeometry(.15, 10, 6, 0, Math.PI * 2, 0, Math.PI * .55), hair, 0, .032, -.009);
-  cap.scale.set(.89, style === 'buzz' || style === 'shaved' ? .78 : .97, .95);
-  if (style === 'shaved') cap.scale.y = .66;
-  if (style === 'curls' || style === 'afro') {
-    const n = style === 'afro' ? 16 : 12, r = style === 'afro' ? .06 : .04;
-    for (let i = 0; i < n; i++) {
-      const a = i / n * Math.PI * 2;
-      mesh(head, new THREE.IcosahedronGeometry(r, 1), hair, Math.cos(a) * .101, .104 + (i % 3) * .016, Math.sin(a) * .093);
-    }
-    if (style === 'afro') mesh(head, new THREE.IcosahedronGeometry(.098, 1), hair, 0, .133, 0).scale.set(1, .8, 1);
-  } else if (style === 'sidepart') {
-    const fringe = mesh(head, new THREE.IcosahedronGeometry(.104, 0), hair, -.041, .139, .029);
-    fringe.scale.set(1, .48, .9);
-    fringe.rotation.z = -.3;
-  } else if (style === 'tied') {
-    mesh(head, new THREE.IcosahedronGeometry(.064, 1), hair, 0, .087, -.157);
-    mesh(head, new THREE.IcosahedronGeometry(.046, 1), hair, 0, .021, -.18);
-  } else if (style === 'crop' || style === 'messy') {
-    const n = style === 'messy' ? 7 : 4;
-    for (let i = 0; i < n; i++) {
-      const tuft = mesh(head, new THREE.ConeGeometry(.037, .076, 5), hair, -.064 + i * (style === 'messy' ? .023 : .041), .162, .041 - (style === 'messy' ? (i % 3) * .023 : 0));
-      tuft.rotation.z = -.25 + (style === 'messy' ? (i % 4) * .16 : 0);
-    }
-  } else if (style === 'long') {
-    const back = mesh(head, new THREE.BoxGeometry(.197, .197, .052), hair, 0, -.052, -.125);
-    back.rotation.x = .08;
-  } else if (style === 'undercut') {
-    cap.scale.y = .82;
-    for (let i = 0; i < 3; i++) {
-      const tuft = mesh(head, new THREE.ConeGeometry(.035, .07, 5), hair, -.035 + i * .035, .168, .035);
-      tuft.rotation.z = -.35;
-    }
-  }
-}
+const HAIR_STYLES_B = ['short','buzz','mash','sidepart','centerpart','slickback','wavy','curly','ponytail','long','afro'];
+const hairColorsB = [0x1b2026, 0x3b2d22, 0x775139, 0x9b7449, 0x7a2e1d]; // athletes are in their 20s-30s: no grey hair
+// Face types (eye/brow shapes, iris, nose/lips, skin) and hairstyles come
+// from the shared face.js system, same as the soccer squads.
 export function createAthlete(player, team) {
   const group = new THREE.Group();
   // The torso pivots at the hips (y .99), not at the floor: leaning forward
@@ -126,7 +84,8 @@ export function createAthlete(player, team) {
   const faceSeed = [...(team.id ?? 'tokyo')].reduce((a, c) => a * 31 + c.charCodeAt(0), 7) + player.id * 31 + player.slot * 7;
   const face = faceFor(SQUAD_FACE_POOLS[team.id] ?? SQUAD_FACE_POOLS.tokyo, faceSeed);
   const skin = material(face.skin);
-  const hair = material(hairColorsB[(player.id * 5 + 2) % hairColorsB.length]);
+  const hairColor = hairColorsB[(player.id * 5 + 2) % hairColorsB.length];
+  const hair = material(hairColor);
   const shoe = material(player.slot % 2 ? 0xf3f0e6 : 0x27394b);
   group.add(torso);
   // A pelvis mass bridges waist and thighs at the hip line.
@@ -140,16 +99,21 @@ export function createAthlete(player, team) {
   // Jersey detailing: chest stripe and neckline in the trim colour.
   mesh(torso,new THREE.CylinderGeometry(.184,.178,.05,8),trim,0,.45,0)
     .scale.set(1.11,1,.83);
-  mesh(torso,new THREE.CylinderGeometry(.088,.098,.045,8),trim,0,.585,0)
+  mesh(torso,new THREE.CylinderGeometry(.088,.098,.045,8),trim,0,.585,-.045)
     .scale.set(1,1,.9);
-  mesh(torso, new THREE.CylinderGeometry(.065,.07,.13,8), skin, 0, .69, 0);
+  // The imported head is cut at the jaw line; a slim neck cylinder on
+  // the torso bridges the jersey to the jaw (the model's own long,
+  // slanted neck looked wrong against the stylised body).
+  mesh(torso, new THREE.CylinderGeometry(.05, .05, .19, 8), skin, 0, .695, -.045);
   const head = new THREE.Group();
   head.position.set(0, .83, 0);
   torso.add(head);
-  const skull = mesh(head, new THREE.SphereGeometry(.145, 14, 12), skin, 0, 0, 0);
-  skull.scale.set(.88, 1.06, .92);
-  addHairBasketball(head, HAIR_STYLES_B[(player.id * 7 + player.slot * 3) % HAIR_STYLES_B.length], hair);
-  addFaceFeatures(head, material, face, skin, hair, 1.16);
+  // Imported CC0 head (shared with soccer), morphed by face type.
+  buildImportedHead(head, material, {
+    face, skinTone: face.skin, hairColor,
+    hairstyle: HAIR_STYLES_B[(player.id * 7 + player.slot * 3) % HAIR_STYLES_B.length],
+    seed: faceSeed, f: 1.02, seat: -.25,
+  });
   const legs = [], arms = [];
   for (const side of [-1, 1]) {
     const thigh = new THREE.Group();
