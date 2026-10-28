@@ -11,10 +11,11 @@ const names = {
   spain: ['Hugo Serrano','Pablo Ortega','Diego Molina','Adrian Torres','Alex Navarro','Marcos Vidal','Izan Romero','Nico Santos','Leo Castillo','Daniel Vega','Mario Ruiz'],
   portugal: ['Tiago Moreira','Diogo Costa','Goncalo Sousa','Rafael Duarte','Nuno Pereira','Joao Mendes','Miguel Carvalho','Andre Faria','Pedro Azevedo','Tomas Silva','Rui Teixeira'],
 };
-// Japanese annotation for every name: kanji (with kana reading) for the
-// Japan squad, katakana transliteration for the other squads.
+// Japanese annotation for every name: kanji alone for the Japan squad
+// (no kana reading - the kanji name is enough), katakana
+// transliteration for the other squads.
 const namesJa = {
-  japan: ['高橋 蓮（タカハシ・レン）','森 海翔（モリ・カイト）','林 悠斗（ハヤシ・ユウト）','中村 颯太（ナカムラ・ソウタ）','石川 春（イシカワ・ハル）','青木 陸（アオキ・リク）','藤田 大地（フジタ・ダイチ）','岡田 勇輝（オカダ・ユウキ）','水野 駿（ミズノ・シュン）','佐藤 晃（サトウ・アキラ）','松田 圭（マツダ・ケイ）'],
+  japan: ['高橋 蓮','森 海翔','林 悠斗','中村 颯太','石川 春','青木 陸','藤田 大地','岡田 勇輝','水野 駿','佐藤 晃','松田 圭'],
   brazil: ['ルーカス・フェレイラ','ラファエル・コスタ','マテウス・リベイロ','ブルーノ・アルメイダ','カイオ・サントス','ペドロ・リマ','チアゴ・ローシャ','ガブリエウ・ヌネス','ダヴィ・モレイラ','フェリペ・アウヴェス','エンゾ・カルヴァーリョ'],
   france: ['ユゴー・モロー','ノア・ローラン','マリク・ディアロ','ルイ・ベルナール','テオ・ガルニエ','アダム・ルフェーヴル','サミ・ベナリ','ジュール・ペラン','エリオット・デュボワ','レオ・マルタン','ノラン・フォール'],
   argentina: ['トマス・モリーナ','ニコラス・ベガ','マテオ・ロハス','ルーカス・アコスタ','ファクンド・シルバ','サンティアゴ・ディアス','エミリアーノ・トーレス','フリアン・ナバーロ','バウティスタ・エレーラ','ラウタロ・ロメロ','フランコ・メディーナ'],

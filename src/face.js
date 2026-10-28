@@ -224,45 +224,75 @@ const HAIR_VARIANTS = {
   buzz: null, afro: 'casual',
 };
 
+// Merge indexed position/normal geometries into one, so a head is a
+// handful of draw calls instead of a dozen.
+function mergeParts(geoms) {
+  let vTotal = 0, iTotal = 0;
+  for (const g of geoms) { vTotal += g.attributes.position.count; iTotal += g.index.count; }
+  const pos = new Float32Array(vTotal * 3), nor = new Float32Array(vTotal * 3);
+  const idx = new (vTotal > 65535 ? Uint32Array : Uint16Array)(iTotal);
+  let vo = 0, io = 0;
+  for (const g of geoms) {
+    pos.set(g.attributes.position.array, vo * 3);
+    nor.set(g.attributes.normal.array, vo * 3);
+    const gi = g.index.array;
+    for (let i = 0; i < gi.length; i++) idx[io + i] = gi[i] + vo;
+    vo += g.attributes.position.count; io += gi.length;
+  }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  out.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  out.setIndex(new THREE.BufferAttribute(idx, 1));
+  return out;
+}
+
+// A primitive baked at a position/scale (and optional y-rotation) in
+// head-group space, ready to merge.
+function prim(geo, sx, sy, sz, x, y, z, ry = 0) {
+  const m = new THREE.Matrix4().compose(
+    new THREE.Vector3(x, y, z),
+    new THREE.Quaternion().setFromEuler(new THREE.Euler(0, ry, 0)),
+    new THREE.Vector3(sx, sy, sz));
+  const g = geo.clone();
+  g.applyMatrix4(m);
+  return g;
+}
+
 // Build the imported head into the head group: skin (morphed), the
 // deformed eye planes and one of the model's hair variants. About a
 // quarter of short-haired players get the bearded variant. `seat` (in
 // f units) positions the jaw-cut head over the game's neck cylinder.
+//
+// Performance: all the static parts are merged per material (skin +
+// socket plugs + skull liners in one mesh, underlay + hair in one,
+// the eye planes in three), and a THREE.LOD swaps the full assembly
+// for a plain skin+hair head beyond 20 units - at broadcast distance
+// the eyes and liners are invisible anyway.
 export function buildImportedHead(head, material, { face, skinTone, hairColor, hairstyle, seed = 0, f = 1, seat = -.2 }) {
   const p = resolveMorph(face, seed);
   const smooth = color => { const m = material(color); m.flatShading = false; return m; };
   const grp = new THREE.Group();
   grp.scale.setScalar(.42 * f);
   grp.position.y = seat * f;
-  const skin = new THREE.Mesh(partGeometry(HEAD_SKIN, morphSkin(HEAD_SKIN.p, p)), smooth(skinTone));
-  skin.castShadow = true;
-  grp.add(skin);
+  const skinMat = smooth(skinTone);
+  const hairMat = smooth(hairColor);
+  const skinP = morphSkin(HEAD_SKIN.p, p);
   // The model's eyeballs plugged real openings in the skin; without
-  // them the sockets gape from side angles. A skin-coloured ellipsoid
-  // at each socket (the sockets do not follow the eye spacing - the
-  // drawn eyes sit inward of them, like lids) fills the opening.
-  const socketGeo = new THREE.SphereGeometry(.5, 12, 10);
-  for (const side of [-1, 1]) {
-    const plug = new THREE.Mesh(socketGeo, skin.material);
-    plug.scale.set(.075, .108, .06);
-    plug.position.set(side * .108, .467, .185);
-    grp.add(plug);
-  }
-  // The extracted shell is not closed: the scalp belongs to the hair
-  // part, and each hair variant leaves different fringe gaps (temples,
-  // hairline, back of the skull). A skin-coloured liner just inside
-  // the shell shows through any such gap instead of the sky.
-  const liner = new THREE.Mesh(new THREE.SphereGeometry(.5, 16, 12), skin.material);
-  liner.scale.set(.30, .42, .30);
-  liner.position.set(0, .40, -.005);
-  grp.add(liner);
-  // A second, flatter liner hugs the hairline strip (the band the
-  // source model leaves to the hair, which the shorter-backed hair
-  // variants do not fully cover, especially at the back of the skull).
-  const band = new THREE.Mesh(new THREE.SphereGeometry(.5, 16, 12), skin.material);
-  band.scale.set(.316, .17, .304);
-  band.position.set(0, .445, -.002);
-  grp.add(band);
+  // them the sockets gape from side angles, and the scalp (which
+  // belongs to the hair part) leaves fringe gaps at the temples,
+  // hairline and back of the skull. Skin-coloured plugs and liners
+  // just inside the shell fill every such gap; they are merged into
+  // the skin mesh, so they cost no extra draw calls.
+  const plugGeo = new THREE.SphereGeometry(.5, 8, 6);
+  const linerGeo = new THREE.SphereGeometry(.5, 12, 9);
+  const skinHigh = new THREE.Mesh(mergeParts([
+    partGeometry(HEAD_SKIN, skinP),
+    prim(plugGeo, .075, .108, .06, -.108, .467, .185),
+    prim(plugGeo, .075, .108, .06, .108, .467, .185),
+    prim(linerGeo, .30, .42, .30, 0, .40, -.005),
+    prim(linerGeo, .316, .17, .304, 0, .445, -.002),
+  ]), skinMat);
+  skinHigh.castShadow = true;
   // Hair underlay: the back and top of the skull belong to the hair
   // part in the source model, and not every hair variant covers them
   // (the quiff is only a front/top slab - from behind, the skull was
@@ -276,48 +306,58 @@ export function buildImportedHead(head, material, { face, skinTone, hairColor, h
     underP[i + 1] = -.01 + (underP[i + 1] + .01) * .98;
     underP[i + 2] = 4.35 + (underP[i + 2] - 4.35) * .98;
   }
-  grp.add(new THREE.Mesh(partGeometry(HEAD_HAIR.casual, underP), smooth(hairColor)));
-  // Subtle anime-deformed eyes instead of the model's black discs: an
-  // off-white oval backing, an iris oval in the face type's colour and
-  // a small pupil. Width follows the eye morph (never wider than the
-  // model's own eyes) and the whole eye follows the eye spacing.
-  const eyeWhite = smooth(0xddd3bf); eyeWhite.side = THREE.DoubleSide;
-  const eyeIris = smooth(face?.iris ?? 0x2a1a10); eyeIris.side = THREE.DoubleSide;
-  const eyePupil = smooth(0x14100e); eyePupil.side = THREE.DoubleSide;
-  const disc = new THREE.CircleGeometry(.5, 20);
-  // The white's width also varies per player (+/-15% by seed), on top
-  // of the type's eye width; iris and pupil scale with the white.
-  const wW = .064 * p.eyeW * (.85 + (hash(seed + 777) % 1000) / 1000 * .3);
-  const wH = .057 * p.eyeH;
-  for (const side of [-1, 1]) {
-    const eye = new THREE.Group();
-    const w = new THREE.Mesh(disc, eyeWhite);
-    w.scale.set(wW, wH, 1);
-    w.position.z = .222;
-    const ir = new THREE.Mesh(disc, eyeIris);
-    ir.scale.set(wW * .744, wH * 1.065, 1);
-    ir.position.z = .228;
-    const pu = new THREE.Mesh(disc, eyePupil);
-    pu.scale.set(wW * .334, wH * .544, 1);
-    pu.position.z = .233;
-    eye.add(w, ir, pu);
-    eye.position.set(side * (.108 + p.eyeGap), .467, 0);
-    eye.rotation.y = side * .16;
-    grp.add(eye);
-  }
   // (an explicit null in HAIR_VARIANTS means "no hair mesh", e.g. buzz;
   // a ?? fallback would wrongly turn it back into the casual variant)
   let variant = hairstyle in HAIR_VARIANTS ? HAIR_VARIANTS[hairstyle] : 'casual';
   if (variant && hairstyle !== 'long' && hash(seed + 777) % 4 === 0) variant = 'beard';
-  if (variant) {
-    const hair = new THREE.Mesh(
-      partGeometry(HEAD_HAIR[variant], morphHair(HEAD_HAIR[variant].p, p, hairstyle === 'afro')),
-      smooth(hairColor));
-    hair.castShadow = true;
-    grp.add(hair);
-  } else { // buzz cut: just the brows over the scalp underlay
-    grp.add(new THREE.Mesh(partGeometry(HEAD_HAIR.brows, morphHair(HEAD_HAIR.brows.p, p, false)), smooth(hairColor)));
-  }
+  const topPart = variant ? HEAD_HAIR[variant] : HEAD_HAIR.brows;
+  const topP = morphHair(topPart.p, p, hairstyle === 'afro');
+  const hairHigh = new THREE.Mesh(mergeParts([
+    partGeometry(HEAD_HAIR.casual, underP),
+    partGeometry(topPart, topP),
+  ]), hairMat);
+  hairHigh.castShadow = true;
+  // Subtle anime-deformed eyes instead of the model's black discs: an
+  // off-white oval backing, an iris oval in the face type's colour and
+  // a small pupil. Width follows the eye morph (never wider than the
+  // model's own eyes) and the whole eye follows the eye spacing. The
+  // two eyes are merged into one mesh per layer.
+  const eyeWhite = smooth(0xddd3bf); eyeWhite.side = THREE.DoubleSide;
+  const eyeIris = smooth(face?.iris ?? 0x2a1a10); eyeIris.side = THREE.DoubleSide;
+  const eyePupil = smooth(0x14100e); eyePupil.side = THREE.DoubleSide;
+  // The white's width also varies per player (+/-15% by seed), on top
+  // of the type's eye width; iris and pupil scale with the white.
+  const wW = .064 * p.eyeW * (.85 + (hash(seed + 777) % 1000) / 1000 * .3);
+  const wH = .057 * p.eyeH;
+  const eyeLayer = (w, h, z) => mergeParts([-1, 1].map(side => {
+    const m = new THREE.Matrix4().makeTranslation(side * (.108 + p.eyeGap), .467, 0)
+      .multiply(new THREE.Matrix4().makeRotationY(side * .16))
+      .multiply(new THREE.Matrix4().makeTranslation(0, 0, z))
+      .multiply(new THREE.Matrix4().makeScale(w, h, 1));
+    const g = new THREE.CircleGeometry(.5, 20);
+    g.applyMatrix4(m);
+    return g;
+  }));
+  const high = new THREE.Group();
+  high.add(skinHigh, hairHigh,
+    new THREE.Mesh(eyeLayer(wW, wH, .222), eyeWhite),
+    new THREE.Mesh(eyeLayer(wW * .744, wH * 1.065, .228), eyeIris),
+    new THREE.Mesh(eyeLayer(wW * .334, wH * .544, .233), eyePupil));
+  // Low LOD: the same morphed skin and hair, without plugs, liners or
+  // eyes (merged or not, none of them read at distance).
+  const low = new THREE.Group();
+  const skinLow = new THREE.Mesh(partGeometry(HEAD_SKIN, skinP), skinMat);
+  skinLow.castShadow = true;
+  const hairLow = new THREE.Mesh(mergeParts([
+    partGeometry(HEAD_HAIR.casual, underP),
+    partGeometry(topPart, topP),
+  ]), hairMat);
+  hairLow.castShadow = true;
+  low.add(skinLow, hairLow);
+  const lod = new THREE.LOD();
+  lod.addLevel(high, 0);
+  lod.addLevel(low, 20);
+  grp.add(lod);
   head.add(grp);
   return grp;
 }
