@@ -173,7 +173,11 @@ export class ArenaAudio {
     this.speech=null;
     try{this.env.speechSynthesis?.cancel();}catch{}
   }
-  speak(text,priority=false) {
+  // Two broadcast roles, two different men: the play-by-play voice takes
+  // the first available Japanese male voice at full rate; the analyst takes
+  // a *different* Japanese male voice (or, when only one exists, the same
+  // voice lowered and slowed) so the two are audibly separate people.
+  speak(text,priority=false,role='play') {
     if(!this.commentaryEnabled||!this.playing||!this.env.SpeechSynthesisUtterance)return false;
     const synth=this.env.speechSynthesis;
     if(!priority&&(synth?.speaking||synth?.pending))return false;
@@ -185,18 +189,25 @@ export class ArenaAudio {
     try {
       const speech=new this.env.SpeechSynthesisUtterance(text);
       speech.lang='ja-JP';
-      speech.rate=this.speechRate;
-      speech.pitch=1;
+      speech.rate=role==='analysis'?this.speechRate*.85:this.speechRate;
       speech.volume=1;
       const voices=synth?.getVoices?.()??[];
       const japanese=voices.filter(voice=>voice.lang?.toLowerCase().startsWith('ja'));
       const maleName=/male|keita|takumi|ichiro|otoya|kenji|masaru|hiroshi|daichi|naoki/i;
-      const preferred=this.voicePreference==='male'?
-        japanese.find(voice=>maleName.test(voice.name||'')):null;
-      if(preferred||japanese[0])speech.voice=preferred||japanese[0];
+      const males=japanese.filter(voice=>maleName.test(voice.name||''));
+      let chosen=null;
+      if(this.voicePreference==='male') {
+        chosen=role==='analysis'?(males[1]??males[0]??japanese[1]??japanese[0])
+          :(males[0]??japanese[0]);
+      } else {
+        chosen=role==='analysis'?(japanese[1]??japanese[0]):japanese[0];
+      }
+      if(chosen)speech.voice=chosen;
       // Voice gender is platform-defined. Where no male Japanese voice is
       // installed, use an available Japanese voice rather than going silent.
-      speech.pitch=this.voicePreference==='male'?.88:1;
+      speech.pitch=this.voicePreference==='male'
+        ?(role==='analysis'?.74:.88)
+        :(role==='analysis'?.92:1);
       speech.onstart=()=>{
         if(token===this.speechToken)this.status('voice','日本語実況を再生中','on');
       };

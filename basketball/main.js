@@ -8,7 +8,10 @@ let squads = [SQUADS[0], SQUADS[1]];
 let playing = true, speed = 1, scene = null, last = performance.now(), statsElapsed = 0, toastTimer;
 let match;
 const arenaAudio=new ArenaAudio();
+arenaAudio.voicePreference='male'; // Play-by-play and analyst are two different men.
 const describePlay=createBasketballCommentary();
+let eventSeq=0;
+const ANALYSIS_TYPES=['score','dunk','shot','miss','rebound','steal','foul','feint','freeThrowMade','pass'];
 const captions = {
   pass: 'パスがつながる。オフェンスが展開する。',
   shot: 'リングへ放った！ シュートの行方は…',
@@ -26,6 +29,7 @@ const captions = {
   freeThrowMissed: 'フリースロー失敗。',
 };
 function displayEvent(type, info) {
+  const seq=++eventSeq;
   const major = ['score','quarter','fulltime','violation','foul','freeThrowStart','freeThrowMade','freeThrowMissed'].includes(type);
   const title=type==='score'?(info.dunk?'SLAM DUNK!':info.points===3?'THREE POINTS!':'TWO POINTS!')
     : type === 'dunk' ? 'DUNK ATTEMPT'
@@ -61,6 +65,17 @@ function displayEvent(type, info) {
   }
   $('commentary').textContent=narration;
   arenaAudio.onEvent(type,{...info,commentary:narration},squads);
+  // Analyst follow-up: a few seconds later the second voice explains the
+  // meaning of the play and the background behind it, unless a newer play
+  // has already taken the microphone.
+  if (ANALYSIS_TYPES.includes(type)) {
+    const analysis=describePlay.analysis(type,info,match,squads);
+    if (analysis) setTimeout(()=>{
+      if (seq!==eventSeq||!playing)return;
+      $('commentary').textContent='【解説】'+analysis;
+      if (arenaAudio.commentaryEnabled) arenaAudio.speak(analysis,false,'analysis');
+    },3000);
+  }
   if (type === 'pass' || type === 'shot' || type === 'rebound') return;
   $('event-title').textContent = title;
   $('event-subtitle').textContent = description;
