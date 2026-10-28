@@ -147,3 +147,12 @@ test('faces carry regional character: eye, brow, iris and skin vary by country',
   const france=[...Array(11)].map((_,s)=>getPlayerProfile('france',s));
   assert.ok(new Set(france.map(p=>p.face.type)).size>=2);
 });
+
+test('head is a composite shape with sockets, brow ridge, jaw and chin',()=>{
+  const m=game();
+  const model=createPlayer(m.players[9],countries[0]);
+  // buildHead parts (cranium, face base, jaw, chin, brow ridge, 2 sockets,
+  // 2 cheeks) + hair + face features (eyes x3 parts, brows, ears, nose
+  // bridge/tip/base, mouth) put well over twenty meshes on the head.
+  assert.ok(model.head.children.length>=20,`head children: ${model.head.children.length}`);
+});

@@ -25,7 +25,7 @@ const namesJa = {
 };
 const skinTones = [0xf0c6a1,0xe1b18d,0xc9946d,0xb47c53,0x996341,0x7c4f33,0x603d29];
 const hairColors = [0x211e1a,0x39291e,0x65452b,0x9b7449,0xc2a56b,0x7a2e1d,0x8a8d90,0xd9d3c3];
-const hairstyles = ['crop','buzz','curls','sidepart','tied','shaved','mohawk','afro','long','messy','undercut'];
+const hairstyles = ['short','buzz','mash','sidepart','centerpart','slickback','wavy','curly','ponytail','long','afro'];
 const cache = new Map();
 
 export function getPlayerProfile(country, slot) {
