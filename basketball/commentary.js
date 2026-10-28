@@ -9,6 +9,8 @@ const CALLS={
   'ここは無理をせず、パスで展開。',
   'ディフェンスを揺さぶる、{team}のパスワーク。',
   'ボールを動かす{team}。チャンスをうかがいます。',
+  'ワンタッチで展開、{team}のリズムが出てきました。',
+  '{receiver}の足元へ、正確なパスが通ります。',
  ],
  shot:[
   '{player}、思い切ってシュート！',
@@ -19,6 +21,8 @@ const CALLS={
   '迷わずシュート。軌道に注目です。',
   '{player}、ここは自分で狙ってきました。',
   'フリーになった{player}、シュート！',
+  'ステップバックからの一発！ {player}が放つ！',
+  'ドライブからプルアップ。{player}のジャンパー！',
  ],
  feint:[
   '{player}、フェイントからクロスオーバー！ 抜いた！',
@@ -42,6 +46,8 @@ const CALLS={
   'リングを射抜いた！ {player}の一撃！',
   'ナイスシュート！ スコアは{score}です。',
   '{team}、{points}ポイント成功！',
+  'ネットを揺らした！ {player}のシュートが決まった！',
+  '{team}、{player}の一撃でリードが動きます！',
  ],
  dunkScore:[
   '叩き込んだ！ {player}のダンク成功！',
@@ -55,6 +61,7 @@ const CALLS={
   '決まりません。こぼれ球はどちらへ？',
   '今のシュートはノーゴール。次のプレーへ。',
   '{team}、このシュートは惜しくも外れました。',
+  'リングに嫌われた。しかし攻撃は続く！',
  ],
  rebound:[
   '{player}がリバウンドを確保！',
@@ -62,6 +69,7 @@ const CALLS={
   '{team}、リバウンドを押さえました。',
   'セカンドボールの争い、{player}が勝った！',
   'ゴール下の競り合いを制しました！',
+  '空中戦を制した！ {player}がボールを収める！',
  ],
  steal:[
   '{player}がスティール！ 一気に攻守交代！',
@@ -69,6 +77,7 @@ const CALLS={
   'パスを読んだ{player}、スティール成功！',
   'ボールを取り返しました。速攻のチャンス！',
   '手を伸ばした{player}がボールを奪取！',
+  '読み勝った！ {player}がボールを奪い取る！',
  ],
  foul:[
   'ここで笛！ ファウルの判定です。',
@@ -76,6 +85,7 @@ const CALLS={
   'レフェリーがプレーを止めました。',
   'ファウルです。{team}に反則が記録されます。',
   '少し強い接触。笛が鳴りました。',
+  'ここで笛が鳴った。{team}のファウルです。',
  ],
  freeThrowStart:[
   'フリースロー。{player}がラインに立ちます。',
@@ -113,11 +123,61 @@ const CALLS={
  fulltime:['試合終了です！ 最終スコアは{score}！','ゲームセット。熱戦に幕が下りました。','フルタイム、試合終了！'],
 };
 export const commentaryVariants=CALLS;
+// Analyst (解説) lines: the second voice explains what the play means, why
+// it was chosen, and adds team/player background (height, position, role).
+// Placeholders: {player} {receiver} {team} {score} {points} {height}
+// {position} {number}
+const ANALYSIS={
+ score:[
+  '決めた{player}は{position}、{height}センチ。得点だけでなく、相手のヘルプを引き付ける存在感が{team}の攻撃を助けています。',
+  'この得点の意味は、スコア以上です。{team}は相手の守備が整う前に攻め切る形を繰り返せています。',
+  'シュート前のドライブで相手を一人剥がしたのが決定機でした。守備はローテーションが間に合っていません。',
+  '背番号{number}の{player}、今日はタッチが合っています。ベンチも長く使う判断になるでしょう。',
+ ],
+ dunkScore:[
+  'ダンクは2点以上の効果があります。会場の空気と{team}のベンチが一気に熱くなりました。',
+  '{height}センチの{player}がリングに叩き込む形は、相手にとって一番止めにくいフィニッシュです。守備はゴール下のポジション争いで負けていました。',
+ ],
+ shot:[
+  'このシュート選択、{position}の{player}にとっては得意な距離です。外れても、打つことで相手の寄せが次から速くなります。',
+  '守備が下がったのを見て打った、判断の良い一本。{team}のスペーシングがシュートスペースを作りました。',
+ ],
+ miss:[
+  '外れはしましたが、シュート自体は良い形。リバウンドに入る人数と位置が、次の攻撃権を左右します。',
+  'リングへの軌道は悪くありませんでした。{team}は切り替えの速さで相手の速攻を防ぎたいところです。',
+ ],
+ rebound:[
+  '{player}のリバウンド、跳ぶ高さより先に、落ちてくる位置を読んで体を入れていました。これがポジショニングの技術です。',
+  'ゴール下の人数配置で{team}が勝っていました。ボックスアウトが機能しています。',
+ ],
+ steal:[
+  'スティールは偶然ではありません。{player}はパスコースを半歩消しながら、相手の目線が切れる瞬間を待っていました。',
+  'この奪い方で{team}は速攻の形へ。守備から流れを作るのがこのチームの持ち味です。',
+ ],
+ foul:[
+  'ファウルは止めるための接触ですが、積み重なると後半に効いてきます。{team}はチームファウルの数にも注意が必要です。',
+  'シュートを打たせるくらいなら、という判断でもあります。ただし、フリースローを与える場面かどうかは際どいところでした。',
+ ],
+ feint:[
+  'フェイントの肝は、相手の重心を一度横に流すこと。{player}はフェイクの大きさではなく、タイミングで勝ちました。',
+  'ディフェンスはボールではなく体に反応してしまいました。クロスオーバーの初速が速い{player}らしい抜き方です。',
+ ],
+ freeThrowMade:[
+  'フリースローは静止した一本ですが、ルーティンの安定がものを言います。{player}は呼吸からリリースまで一定ですね。',
+ ],
+ pass:[
+  'このパス、受ける側が次に何をするかまで計算されています。{team}の連携の成熟度が出ました。',
+  '{position}同士の距離感が良いんです。近いようでいて、相手一人では両方を見切れません。',
+ ],
+};
+export const commentaryAnalysis=ANALYSIS;
+const POSITIONS=['ポイントガード','シューティングガード','スモールフォワード','パワーフォワード','センター'];
 export function createBasketballCommentary(random=Math.random) {
   const previous=new Map();
-  return function describe(type,details={},match=null,teams=[]) {
+  const previousAnalysis=new Map();
+  const build=(type,details,match,teams,bank,seen)=>{
     const category=type==='score'&&details.dunk?'dunkScore':type;
-    const lines=CALLS[category];
+    const lines=bank[category];
     if(!lines)return '';
     const name=player=>{
       if(!player||!teams[player.team])return '選手';
@@ -130,15 +190,24 @@ export function createBasketballCommentary(random=Math.random) {
     const player=match?.players?.[details.player]??null;
     const target=match?.players?.[details.target]??null;
     const team=teams[details.team]?.name??'攻撃側';
-    const last=previous.get(category)??-1;
+    const last=seen.get(category)??-1;
     const options=lines.map((_,i)=>i).filter(i=>i!==last);
     const n=options[Math.min(options.length-1,Math.floor(random()*options.length))];
-    previous.set(category,n);
+    seen.set(category,n);
     const values={
       player:name(player),receiver:name(target),team,
       score:match?.score?.join('対')??'0対0',
       points:details.points??2,
+      height:player?Math.round(player.height*100):'',
+      position:player?POSITIONS[player.slot]??'':'',
+      number:player?.number??'',
     };
     return lines[n].replace(/\{(\w+)\}/g,(_,key)=>String(values[key]??''));
   };
+  function describe(type,details={},match=null,teams=[]) {
+    return build(type,details,match,teams,CALLS,previous);
+  }
+  // Second voice: analysis for the same event, spoken after the call.
+  describe.analysis=(type,details={},match=null,teams=[])=>build(type,details,match,teams,ANALYSIS,previousAnalysis);
+  return describe;
 }

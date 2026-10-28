@@ -107,3 +107,25 @@ test('venue landscape and weather switches maintain finite geometry without accu
   environment.setVenue('tokyo');assert.equal(environment.group.children.length,tokyoCount);
   environment.group.updateMatrixWorld(true);environment.group.traverse(o=>assert.ok(o.matrixWorld.elements.every(Number.isFinite)));
 });
+
+test('faces have eyes nose mouth and ears, and hairstyles vary widely',()=>{
+  const m=game();
+  const styles=new Set(m.players.map(p=>p.profile.hairstyle));
+  assert.ok(styles.size>=8,`expected >=8 hairstyles, got ${[...styles]}`);
+  const model=createPlayer(m.players[9],countries[0]);
+  // skull + hair + 2 eyes (white+pupil) + 2 brows + 2 ears + nose + mouth
+  assert.ok(model.head.children.length>=11,`head children: ${model.head.children.length}`);
+  model.g.updateMatrixWorld(true);
+  model.g.traverse(o=>assert.ok(o.matrixWorld.elements.every(Number.isFinite)));
+});
+
+test('analyst follows major calls with a second-voice explanation',()=>{
+  const captions=[],c=new Commentary(x=>{if(x)captions.push(x)},()=>0),m=game();
+  m.score=[1,0];m.celebration={team:0,scorer:9};
+  c.event('GOAL!',m,countries);
+  assert.equal(c.current.role,'play');
+  for(let i=0;i<40&&c.current?.role!=='analysis';i++)c.update(.5,m,countries,true);
+  assert.equal(c.current?.role,'analysis');
+  const analysis=captions.find(x=>x.role==='analysis');
+  assert.ok(analysis&&!/[{}]/.test(analysis.text),analysis?.text);
+});

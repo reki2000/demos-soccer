@@ -1,4 +1,8 @@
 import { COMMENTARY_BANK } from './commentary-lines.js';
+import { ANALYSIS_BANK } from './commentary-analysis.js';
+import { playerPosition } from './roster.js';
+
+const TACTIC_NAMES = { balanced: 'バランス', possession: 'ポゼッション', counter: 'カウンター', press: 'ハイプレス' };
 
 const EVENT_CATEGORIES = {
   'KICK OFF': ['kickoff', 80], 'GOAL!': ['goal', 100], SHOT: ['shot', 65],
@@ -27,6 +31,9 @@ export class Commentary {
     this.nextAmbient = 0;
     this.previous = {};
     this.lastTurnover = -100;
+    this.analysisSlot = null;
+    this.lastAnalysis = new Map();
+    this.usedAnalysis = new Map();
     this.onCaption(null);
   }
 
@@ -49,12 +56,19 @@ export class Commentary {
         ?? match.players[match.lastTouchPlayer];
     const team = match.celebration?.team ?? match.restart?.team ?? match.setPiece?.team ?? player?.team ?? 0;
     const receiver = match.flight?.target != null ? match.players[match.flight.target] : null;
+    const profile = player?.profile;
+    const settings = match.settings[player?.team ?? team] ?? match.settings[team];
     return {
-      player: player?.profile?.displayName ?? player?.profile?.name ?? `${(player?.slot ?? 0) + 1}番の選手`,
+      player: profile?.displayName ?? profile?.name ?? `${(player?.slot ?? 0) + 1}番の選手`,
       receiver: receiver?.profile?.displayName ?? receiver?.profile?.name ?? '前方の味方',
       team: teams[team].name, opponent: teams[1 - team].name,
       score: `${match.score[0]}対${match.score[1]}`,
       clock: `${String(Math.floor(match.time / 60)).padStart(2, '0')}:${String(Math.floor(match.time % 60)).padStart(2, '0')}`,
+      formation: settings?.formation ?? '',
+      tactic: TACTIC_NAMES[settings?.tactic] ?? '',
+      position: player ? playerPosition(player.slot, settings?.formation ?? '4-3-3') : '',
+      age: profile?.age ?? '', height: profile?.height ?? '',
+      number: profile?.number ?? '', foot: profile?.foot ?? '',
     };
   }
 
@@ -101,10 +115,35 @@ export class Commentary {
     this.lastOpening ??= {};
     this.lastOpening[item.category] = Math.floor(Number(line.id.split('-').at(-1)) / 5);
     const text = line.text.replace(/\{(\w+)\}/g, (_, key) => item.context[key] ?? '');
-    this.current = { ...item, id: line.id, text, until: this.now + Math.max(3.4, Math.min(7, text.length / 12)) };
+    this.current = { ...item, id: line.id, text, role: 'play', until: this.now + Math.max(3.4, Math.min(7, text.length / 12)) };
     this.lastCategory.set(item.category, this.now);
     this.nextAmbient = this.current.until + .4;
-    this.onCaption({ text, clock: item.context.clock, category: item.category, id: line.id });
+    this.onCaption({ text, clock: item.context.clock, category: item.category, id: line.id, role: 'play' });
+    // Major moments earn an analyst follow-up: once this call ends, the
+    // second voice explains the meaning and background (see showAnalysis).
+    if (item.priority >= 55 && ANALYSIS_BANK[item.category]) {
+      this.analysisSlot = { category: item.category, context: item.context, expires: this.current.until + 2.5 };
+    }
+  }
+
+  showAnalysis(slot) {
+    const lines = ANALYSIS_BANK[slot.category];
+    if (!lines) return false;
+    if (this.now - (this.lastAnalysis.get(slot.category) ?? -100) < 18) return false;
+    const history = this.usedAnalysis.get(slot.category) ?? [];
+    let available = lines.map((text, i) => ({ text, i })).filter(({ i }) => !history.includes(i));
+    if (!available.length) available = lines.map((text, i) => ({ text, i }));
+    const pick = available[Math.floor(this.random() * available.length)];
+    history.push(pick.i);
+    this.usedAnalysis.set(slot.category, history.slice(-6));
+    this.lastAnalysis.set(slot.category, this.now);
+    const text = pick.text.replace(/\{(\w+)\}/g, (_, key) => slot.context[key] ?? '');
+    this.current = { category: `analysis:${slot.category}`, context: slot.context, priority: 30,
+      id: `analysis-${slot.category}-${pick.i}`, text, role: 'analysis',
+      until: this.now + Math.max(3.4, Math.min(8, text.length / 11)) };
+    this.nextAmbient = this.current.until + .4;
+    this.onCaption({ text, clock: slot.context.clock, category: this.current.category, id: this.current.id, role: 'analysis' });
+    return true;
   }
 
   update(dt, match, teams, playing) {
@@ -115,7 +154,13 @@ export class Commentary {
       this.onCaption(null);
       this.pending = this.pending.filter(p => p.expires > this.now);
       if (this.pending.length) this.show(this.pending.shift());
+      else if (this.analysisSlot) {
+        const slot = this.analysisSlot;
+        this.analysisSlot = null;
+        if (this.now <= slot.expires) this.showAnalysis(slot);
+      }
     }
+    if (this.analysisSlot && this.now > this.analysisSlot.expires) this.analysisSlot = null;
     const context = this.context(match, teams);
     const state = {
       flight: match.flight, control: match.control, duel: match.duel, loose: !!match.loose,

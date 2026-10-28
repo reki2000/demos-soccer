@@ -35,10 +35,14 @@ const highlights=new Highlights((clip,index,total)=>{
 const commentary=new Commentary(caption=>{
   $('commentary-text').textContent=caption?.text??'';
   $('commentary-time').textContent=caption?.clock??'';
+  // Two-person booth: play-by-play (実況) and analyst (解説) are labelled
+  // separately and spoken by two different male voices.
+  const label=document.querySelector('.commentary-label');
+  if(label?.firstChild)label.firstChild.textContent=caption?.role==='analysis'?'解説 ':'実況 ';
   $('commentary').classList.toggle('speaking',!!caption);
   if(caption&&arenaAudio.commentaryEnabled&&playing&&!highlights?.active){
     const now=Date.now();
-    if(now-lastCaptionSpeech>2300 && arenaAudio.speak(caption.text))lastCaptionSpeech=now;
+    if(now-lastCaptionSpeech>2300 && arenaAudio.speak(caption.text,false,caption.role??'play'))lastCaptionSpeech=now;
   }
 });
 new ResizeObserver(entries=>{const height=entries[0].contentRect.height;$('viewport').style.setProperty('--caption-offset',Math.ceil(height+40)+'px')}).observe($('commentary'));

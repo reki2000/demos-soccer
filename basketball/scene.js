@@ -68,30 +68,102 @@ function woodTexture() {
   texture.anisotropy = 8;
   return texture;
 }
-function createAthlete(player, team) {
+const HAIR_STYLES_B = ['crop','curls','mohawk','afro','sidepart','long','messy','buzz','tied','undercut','shaved'];
+const hairColorsB = [0x1b2026, 0x3b2d22, 0x775139, 0x9b7449, 0x7a2e1d, 0x8a8d90];
+function addFaceBasketball(head, skin, hair) {
+  const dark = material(0x201914);
+  const white = material(0xf4efe6);
+  const lip = material(0x8a4a3c);
+  for (const side of [-1, 1]) {
+    const eyeWhite = mesh(head, new THREE.SphereGeometry(.023, 8, 6), white, side * .051, .021, .121);
+    eyeWhite.scale.set(1, 1.2, .55);
+    const pupil = mesh(head, new THREE.SphereGeometry(.012, 8, 6), dark, side * .051, .021, .138);
+    pupil.scale.set(1, 1.25, .5);
+    const brow = mesh(head, new THREE.BoxGeometry(.046, .01, .013), hair, side * .052, .062, .127);
+    brow.rotation.z = -side * .18;
+    const ear = mesh(head, new THREE.SphereGeometry(.03, 8, 6), skin, side * .121, -.007, 0);
+    ear.scale.set(.45, 1, .72);
+  }
+  const nose = mesh(head, new THREE.SphereGeometry(.027, 8, 6), skin, 0, -.021, .136);
+  nose.scale.set(.75, 1.3, .95);
+  mesh(head, new THREE.BoxGeometry(.048, .01, .013), lip, 0, -.081, .119);
+}
+function addHairBasketball(head, style, hair) {
+  if (style === 'mohawk') {
+    for (let i = 0; i < 5; i++) {
+      const spike = mesh(head, new THREE.ConeGeometry(.03, .098, 5), hair, 0, .145, .087 - i * .044);
+      spike.rotation.x = -.25 + i * .1;
+    }
+    return;
+  }
+  const cap = mesh(head, new THREE.SphereGeometry(.15, 10, 6, 0, Math.PI * 2, 0, Math.PI * .55), hair, 0, .032, -.009);
+  cap.scale.set(.89, style === 'buzz' || style === 'shaved' ? .78 : .97, .95);
+  if (style === 'shaved') cap.scale.y = .66;
+  if (style === 'curls' || style === 'afro') {
+    const n = style === 'afro' ? 16 : 12, r = style === 'afro' ? .06 : .04;
+    for (let i = 0; i < n; i++) {
+      const a = i / n * Math.PI * 2;
+      mesh(head, new THREE.IcosahedronGeometry(r, 1), hair, Math.cos(a) * .101, .104 + (i % 3) * .016, Math.sin(a) * .093);
+    }
+    if (style === 'afro') mesh(head, new THREE.IcosahedronGeometry(.098, 1), hair, 0, .133, 0).scale.set(1, .8, 1);
+  } else if (style === 'sidepart') {
+    const fringe = mesh(head, new THREE.IcosahedronGeometry(.104, 0), hair, -.041, .139, .029);
+    fringe.scale.set(1, .48, .9);
+    fringe.rotation.z = -.3;
+  } else if (style === 'tied') {
+    mesh(head, new THREE.IcosahedronGeometry(.064, 1), hair, 0, .087, -.157);
+    mesh(head, new THREE.IcosahedronGeometry(.046, 1), hair, 0, .021, -.18);
+  } else if (style === 'crop' || style === 'messy') {
+    const n = style === 'messy' ? 7 : 4;
+    for (let i = 0; i < n; i++) {
+      const tuft = mesh(head, new THREE.ConeGeometry(.037, .076, 5), hair, -.064 + i * (style === 'messy' ? .023 : .041), .162, .041 - (style === 'messy' ? (i % 3) * .023 : 0));
+      tuft.rotation.z = -.25 + (style === 'messy' ? (i % 4) * .16 : 0);
+    }
+  } else if (style === 'long') {
+    const back = mesh(head, new THREE.BoxGeometry(.197, .197, .052), hair, 0, -.052, -.125);
+    back.rotation.x = .08;
+  } else if (style === 'undercut') {
+    cap.scale.y = .82;
+    for (let i = 0; i < 3; i++) {
+      const tuft = mesh(head, new THREE.ConeGeometry(.035, .07, 5), hair, -.035 + i * .035, .168, .035);
+      tuft.rotation.z = -.35;
+    }
+  }
+}
+export function createAthlete(player, team) {
   const group = new THREE.Group();
+  // The torso pivots at the hips (y .99), not at the floor: leaning forward
+  // while running now rotates the upper body around the waist, so the
+  // torso, pelvis and legs stay connected instead of shearing apart.
   const torso = new THREE.Group();
+  torso.position.y = .99;
   const main = material(team.color);
   const trim = material(team.trim);
   const skin = material(skinColors[(player.id * 3 + 1) % skinColors.length]);
-  const hair = material([0x1b2026, 0x3b2d22, 0x775139][player.id % 3]);
+  const hair = material(hairColorsB[(player.id * 5 + 2) % hairColorsB.length]);
   const shoe = material(player.slot % 2 ? 0xf3f0e6 : 0x27394b);
   group.add(torso);
+  // A pelvis mass bridges waist and thighs at the hip line.
+  mesh(group, new THREE.SphereGeometry(.16, 10, 8), trim, 0, .985, 0).scale.set(1.15, .62, .85);
   // Slim athletic torso: narrower waist, still wider left/right than
-  // front/back, like a jersey on a lean frame.
-  mesh(torso,new THREE.CylinderGeometry(.195,.155,.54,8),main,0,1.32,0)
+  // front/back, like a jersey on a lean frame. (Y values are hip-relative.)
+  mesh(torso,new THREE.CylinderGeometry(.195,.155,.54,8),main,0,.33,0)
     .scale.set(1.12,1,.84);
-  mesh(torso,new THREE.CylinderGeometry(.168,.158,.16,8),trim,0,1.01,0)
+  mesh(torso,new THREE.CylinderGeometry(.168,.158,.16,8),trim,0,.02,0)
     .scale.set(1.08,1,.84);
   // Jersey detailing: chest stripe and neckline in the trim colour.
-  mesh(torso,new THREE.CylinderGeometry(.184,.178,.05,8),trim,0,1.44,0)
+  mesh(torso,new THREE.CylinderGeometry(.184,.178,.05,8),trim,0,.45,0)
     .scale.set(1.11,1,.83);
-  mesh(torso,new THREE.CylinderGeometry(.088,.098,.045,8),trim,0,1.575,0)
+  mesh(torso,new THREE.CylinderGeometry(.088,.098,.045,8),trim,0,.585,0)
     .scale.set(1,1,.9);
-  mesh(torso, new THREE.CylinderGeometry(.065,.07,.13,8), skin, 0, 1.68, 0);
-  const head = mesh(torso, new THREE.IcosahedronGeometry(.145,1), skin, 0, 1.82, 0);
-  head.scale.set(.9, 1.1, .93);
-  mesh(torso, new THREE.SphereGeometry(.132,9,6,0,Math.PI*2,0,Math.PI*.48), hair,0,1.88,0);
+  mesh(torso, new THREE.CylinderGeometry(.065,.07,.13,8), skin, 0, .69, 0);
+  const head = new THREE.Group();
+  head.position.set(0, .83, 0);
+  torso.add(head);
+  const skull = mesh(head, new THREE.SphereGeometry(.145, 14, 12), skin, 0, 0, 0);
+  skull.scale.set(.88, 1.06, .92);
+  addHairBasketball(head, HAIR_STYLES_B[(player.id * 7 + player.slot * 3) % HAIR_STYLES_B.length], hair);
+  addFaceBasketball(head, skin, hair);
   const legs = [], arms = [];
   for (const side of [-1, 1]) {
     const thigh = new THREE.Group();
@@ -114,7 +186,7 @@ function createAthlete(player, team) {
     mesh(ankle, new THREE.BoxGeometry(.135,.025,.255), material(0xf3f0e6), 0,-.112,.07);
     legs.push({hip:thigh, knee, ankle});
     const arm = new THREE.Group();
-    arm.position.set(side * .222,1.53,0);
+    arm.position.set(side * .222,.54,0);
     torso.add(arm);
     mesh(arm,new THREE.CylinderGeometry(.07,.06,.14,7),main,0,-.048,0);
     mesh(arm,new THREE.CylinderGeometry(.054,.046,.14,7),skin,0,-.17,0);
@@ -144,7 +216,7 @@ function createAthlete(player, team) {
   // Number faces backward (-local Z). It no longer appears on the chest.
   const number=mesh(torso,new THREE.PlaneGeometry(.32,.32),
     new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(plate),
-      transparent:true,side:THREE.DoubleSide,depthWrite:false}),0,1.35,-.152);
+      transparent:true,side:THREE.DoubleSide,depthWrite:false}),0,.36,-.152);
   number.rotation.y=Math.PI;
   group.scale.setScalar(player.height / 1.99);
   return {group, legs, arms, torso, player};
@@ -429,7 +501,7 @@ export class ArenaScene {
       const hop=isShooting && isFreeThrow ? .025*
         Math.sin(Math.PI*Math.max(0,Math.min(1,shotProgress))) : 0;
       const naturalBounce=.025*Math.abs(Math.sin(p.phase))*running;
-      model.torso.position.y=(guard?-crouch*.5:naturalBounce*.30)+hop;
+      model.torso.position.y=.99+(guard?-crouch*.5:naturalBounce*.30)+hop;
       model.torso.rotation.x=guard?.10:body.lean;
       model.torso.rotation.z=guard?0:-body.bank;
       const blend=1-Math.exp(-dt*11);

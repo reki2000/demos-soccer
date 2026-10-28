@@ -197,3 +197,12 @@ test('basketball default camera is the ball-follow mode',()=>{
   assert.match(html,/<button data-camera="follow" class="active"/);
   assert.match(html,/id="camera-label">BALL FOLLOW</);
 });
+
+test('basketball athletes have faces, varied hair and a hip-pivot torso',()=>{
+  const scene=readFileSync(new URL('../basketball/scene.js',import.meta.url),'utf8');
+  assert.match(scene,/addFaceBasketball/);
+  assert.match(scene,/addHairBasketball/);
+  assert.match(scene,/HAIR_STYLES_B = \[[^\]]*'mohawk'[^\]]*'afro'/);
+  assert.match(scene,/torso\.position\.y = \.99/);
+  assert.match(scene,/\.99\+\(guard\?/);
+});

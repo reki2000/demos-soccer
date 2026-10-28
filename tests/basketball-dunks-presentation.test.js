@@ -152,3 +152,24 @@ test('large basketball score flash uses centered score typography',()=>{
   assert.match(script,/toast\.classList\.toggle\('score-event'/);
   assert.match(style,/\.event-toast\.score-event/);
 });
+
+test('play-by-play and analyst use two different male voices',()=>{
+  const voices=[{lang:'ja-JP',name:'Kyoko'},{lang:'ja-JP',name:'Takumi Male'},{lang:'ja-JP',name:'Ichiro Male'}];
+  class U{constructor(text){this.text=text}}
+  const spoken=[];
+  const audio=new ArenaAudio({SpeechSynthesisUtterance:U,speechSynthesis:{getVoices(){return voices},speak(v){spoken.push(v)},cancel(){},resume(){}}});
+  audio.setCommentary(true);audio.speechRate=2.14;audio.voicePreference='male';
+  assert.equal(audio.speak('実況です',true),true);
+  assert.equal(audio.speak('解説です',true,'analysis'),true);
+  assert.equal(spoken[0].voice,voices[1]);assert.equal(spoken[0].pitch,.88);
+  assert.equal(spoken[1].voice,voices[2]);assert.equal(spoken[1].pitch,.74);
+  assert.ok(spoken[1].rate<spoken[0].rate);
+});
+
+test('basketball analyst adds meaning and player background',()=>{
+  const describe=createBasketballCommentary(()=>0);
+  const match={players:[{team:0,slot:4,height:2.05,number:34}],score:[20,18]};
+  const teams=[{name:'TOKYO BAY HAWKS',namesJa:['田中 健（タナカ・ケン）'],names:['Ken Tanaka']}];
+  const line=describe.analysis('score',{player:0,team:0,points:2},match,teams);
+  assert.match(line,/センター/);assert.match(line,/205センチ/);assert.doesNotMatch(line,/[{}]/);
+});

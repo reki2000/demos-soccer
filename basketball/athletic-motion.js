@@ -16,7 +16,7 @@ export function runningBodyPose(phase,speed,guarding=false,turnRate=0,accel=0) {
   const bounce=fast*shuffle*(.055+.05*Math.sin(phase*2));
   // Acceleration pitches the torso: drive forward out of a start, sit back
   // slightly when braking. Turning banks the body into the cut.
-  const lean=fast*(guarding?.045:.115)+clamp(accel,-6,6)*.012*(guarding?.3:1);
+  const lean=fast*(guarding?.045:.16)+clamp(accel,-6,6)*.012*(guarding?.3:1);
   const bank=clamp(turnRate,-2.6,2.6)*.055*fast*(guarding?.35:1);
   return {bounce,lean,fast,bank};
 }

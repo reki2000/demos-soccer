@@ -29,28 +29,73 @@ function segment(parent, top, bottom, length, mat, y = -length / 2) {
 }
 
 function addHair(head, profile) {
-  if (profile.hairstyle === 'shaved') return;
   const hairMaterial = material(profile.hairColor);
-  const cap = mesh(head, new THREE.SphereGeometry(.12, 8, 5, 0, Math.PI * 2, 0, Math.PI * .55), hairMaterial, 0, .028, -.008);
-  cap.scale.set(.87, profile.hairstyle === 'buzz' ? .72 : .95, .94);
-  if (profile.hairstyle === 'curls') {
-    for (let i = 0; i < 12; i++) {
-      const a = i / 12 * Math.PI * 2;
-      mesh(head, new THREE.IcosahedronGeometry(.034, 1), hairMaterial, Math.cos(a) * .087, .09 + (i % 3) * .014, Math.sin(a) * .08);
+  const style = profile.hairstyle;
+  if (style === 'mohawk') {
+    // A central ridge of spikes from forehead to crown; no side cap.
+    for (let i = 0; i < 5; i++) {
+      const spike = mesh(head, new THREE.ConeGeometry(.026, .085, 5), hairMaterial, 0, .125, .075 - i * .038);
+      spike.rotation.x = -.25 + i * .1;
     }
-  } else if (profile.hairstyle === 'sidepart') {
+    return;
+  }
+  // The cap sits just outside the skull so it reads as hair, not a dent.
+  const cap = mesh(head, new THREE.SphereGeometry(.129, 10, 6, 0, Math.PI * 2, 0, Math.PI * .55), hairMaterial, 0, .028, -.008);
+  cap.scale.set(.88, style === 'buzz' || style === 'shaved' ? .78 : .97, .95);
+  if (style === 'shaved') cap.scale.y = .66;
+  if (style === 'curls' || style === 'afro') {
+    const n = style === 'afro' ? 16 : 12, r = style === 'afro' ? .052 : .034;
+    for (let i = 0; i < n; i++) {
+      const a = i / n * Math.PI * 2;
+      mesh(head, new THREE.IcosahedronGeometry(r, 1), hairMaterial, Math.cos(a) * .087, .09 + (i % 3) * .014, Math.sin(a) * .08);
+    }
+    if (style === 'afro') mesh(head, new THREE.IcosahedronGeometry(.085, 1), hairMaterial, 0, .115, 0).scale.set(1, .8, 1);
+  } else if (style === 'sidepart') {
     const fringe = mesh(head, new THREE.IcosahedronGeometry(.09, 0), hairMaterial, -.035, .12, .025);
     fringe.scale.set(1, .48, .9);
     fringe.rotation.z = -.3;
-  } else if (profile.hairstyle === 'tied') {
+  } else if (style === 'tied') {
     mesh(head, new THREE.IcosahedronGeometry(.055, 1), hairMaterial, 0, .075, -.135);
     mesh(head, new THREE.IcosahedronGeometry(.04, 1), hairMaterial, 0, .018, -.155);
-  } else if (profile.hairstyle === 'crop') {
-    for (let i = 0; i < 4; i++) {
-      const tuft = mesh(head, new THREE.ConeGeometry(.032, .066, 5), hairMaterial, -.055 + i * .035, .14, .035);
-      tuft.rotation.z = -.25;
+  } else if (style === 'crop' || style === 'messy') {
+    const n = style === 'messy' ? 7 : 4;
+    for (let i = 0; i < n; i++) {
+      const tuft = mesh(head, new THREE.ConeGeometry(.032, .066, 5), hairMaterial, -.055 + i * (style === 'messy' ? .02 : .035), .14, .035 - (style === 'messy' ? (i % 3) * .02 : 0));
+      tuft.rotation.z = -.25 + (style === 'messy' ? (i % 4) * .16 : 0);
+    }
+  } else if (style === 'long') {
+    const back = mesh(head, new THREE.BoxGeometry(.17, .17, .045), hairMaterial, 0, -.045, -.108);
+    back.rotation.x = .08;
+  } else if (style === 'undercut') {
+    cap.scale.y = .82;
+    for (let i = 0; i < 3; i++) {
+      const tuft = mesh(head, new THREE.ConeGeometry(.03, .06, 5), hairMaterial, -.03 + i * .03, .145, .03);
+      tuft.rotation.z = -.35;
     }
   }
+}
+
+// Eyes (white + pupil), brows, a shaped nose, mouth and ears, so faces read
+// as faces from the broadcast camera instead of a bare faceted ball.
+function addFace(head, profile, skin) {
+  const dark = material(0x201914);
+  const white = material(0xf4efe6);
+  const lip = material(0x8a4a3c);
+  const hairMaterial = material(profile.hairColor);
+  for (const side of [-1, 1]) {
+    const eyeWhite = mesh(head, new THREE.SphereGeometry(.02, 8, 6), white, side * .044, .018, .104);
+    eyeWhite.scale.set(1, 1.2, .55);
+    const pupil = mesh(head, new THREE.SphereGeometry(.0105, 8, 6), dark, side * .044, .018, .119);
+    pupil.scale.set(1, 1.25, .5);
+    const brow = mesh(head, new THREE.BoxGeometry(.04, .009, .012), hairMaterial, side * .045, .054, .11);
+    brow.rotation.z = -side * .18;
+    const ear = mesh(head, new THREE.SphereGeometry(.026, 8, 6), skin, side * .104, -.006, 0);
+    ear.scale.set(.45, 1, .72);
+  }
+  const nose = mesh(head, new THREE.SphereGeometry(.024, 8, 6), skin, 0, -.018, .117);
+  nose.scale.set(.75, 1.3, .95);
+  const mouth = mesh(head, new THREE.BoxGeometry(.042, .009, .012), lip, 0, -.07, .103);
+  mouth.rotation.x = .1;
 }
 
 export function createPlayer(p, team) {
@@ -75,10 +120,11 @@ export function createPlayer(p, team) {
   segment(torso, .082, .092, .05, trim, .545).scale.z = .8;
   segment(torso, .057, .07, .095, skin, .575);
   const head = joint(torso, 0, .72);
-  const skull = mesh(head, new THREE.IcosahedronGeometry(.125, 1), skin, 0, 0);
-  skull.scale.set(.83, 1.08, .9);
+  // Smooth sphere skull: the old faceted icosahedron read as a dented forehead.
+  const skull = mesh(head, new THREE.SphereGeometry(.125, 14, 12), skin, 0, 0);
+  skull.scale.set(.84, 1.05, .92);
   addHair(head, profile);
-  mesh(head, new THREE.IcosahedronGeometry(.027, 0), skin, 0, -.015, .111);
+  addFace(head, profile, skin);
   const legs = [], arms = [];
   for (const side of [-1, 1]) {
     const hip = joint(pelvis, side * .092, 0);
