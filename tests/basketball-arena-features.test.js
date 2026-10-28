@@ -211,3 +211,8 @@ test('basketball heads use the composite buildHead shape',()=>{
   const scene=readFileSync(new URL('../basketball/scene.js',import.meta.url),'utf8');
   assert.match(scene,/buildHead\(head, material, face\.skin, 1\.16\)/);
 });
+
+test('basketball play-by-play speaks faster than the default rate',()=>{
+  const main=readFileSync(new URL('../basketball/main.js',import.meta.url),'utf8');
+  assert.match(main,/arenaAudio\.speechRate=2\.0/);
+});

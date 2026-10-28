@@ -9,6 +9,7 @@ let playing = true, speed = 1, scene = null, last = performance.now(), statsElap
 let match;
 const arenaAudio=new ArenaAudio();
 arenaAudio.voicePreference='male'; // Play-by-play and analyst are two different men.
+arenaAudio.speechRate=2.0; // Faster play-by-play than the 1.43 default; the analyst follows at 85% of this.
 const describePlay=createBasketballCommentary();
 let eventSeq=0;
 const ANALYSIS_TYPES=['score','dunk','shot','miss','rebound','steal','foul','feint','freeThrowMade','pass'];
