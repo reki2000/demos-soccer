@@ -20,10 +20,15 @@ export function createCrowd(teams) {
   }
   const count = people.length;
   const mat = () => new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, flatShading: true });
-  const bodies = new THREE.InstancedMesh(new THREE.CylinderGeometry(.21, .17, .48, 6), mat(), count);
-  const heads = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(.13, 1), mat(), count);
-  const hair = new THREE.InstancedMesh(new THREE.SphereGeometry(.135, 6, 3, 0, Math.PI * 2, 0, Math.PI * .48), mat(), count);
-  const arms = new THREE.InstancedMesh(new THREE.CylinderGeometry(.052, .04, .40, 5), mat(), count * 2);
+  // The crowd is ~4,300 instanced people and dominates the frame's
+  // triangle count, so every part uses the cheapest geometry that
+  // still reads at stand distance: open-ended cylinders (caps are
+  // never visible on seated people) and a detail-0 head.
+  const bodies = new THREE.InstancedMesh(new THREE.CylinderGeometry(.21, .17, .48, 6, 1, true), mat(), count);
+  const heads = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(.13, 0), mat(), count);
+  const hair = new THREE.InstancedMesh(new THREE.SphereGeometry(.135, 5, 2, 0, Math.PI * 2, 0, Math.PI * .48), mat(), count);
+  const arms = new THREE.InstancedMesh(new THREE.CylinderGeometry(.052, .04, .40, 4, 1, true), mat(), count * 2);
+  arms.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   const scarves = new THREE.InstancedMesh(new THREE.BoxGeometry(.12, .32, .035), mat(), count);
   group.add(bodies, heads, hair, arms, scarves);
   const object = new THREE.Object3D();
@@ -87,6 +92,12 @@ function setArm(arms, object, pose, angle) {
 
 export function animateCrowd(crowd, dt) {
   crowd.elapsed += dt;
+  // The wave is a slow sway; refreshing the arm matrices at 12 Hz is
+  // indistinguishable from every frame and avoids re-uploading the
+  // whole arms instance buffer (8,500+ matrices) 60 times a second.
+  crowd.armAcc = (crowd.armAcc ?? 0) + dt;
+  if (crowd.armAcc < 1 / 12) return;
+  crowd.armAcc = 0;
   for (const pose of crowd.waving) {
     setArm(crowd.arms, crowd.object, pose, pose.raised + Math.sin(crowd.elapsed * 2 + pose.phase) * .15);
   }

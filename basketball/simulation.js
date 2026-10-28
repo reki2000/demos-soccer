@@ -7,9 +7,9 @@ import {dribblePoint,releasePoint,receivePoint,arcPoint,mixPoint,blend,controlli
 export { COURT } from './court.js';
 export const SQUADS = [
   { id: 'tokyo', name: 'TOKYO BAY HAWKS', code: 'TKY', color: 0x85d6ed, trim: 0x172c43, names: ['Shota Takamura', 'Ryosuke Fujii', 'Kenta Mizuno', 'Yuki Morishita', 'Daichi Nagasawa'],
-    namesJa: ['高村 翔太（タカムラ・ショウタ）', '藤井 涼介（フジイ・リョウスケ）', '水野 健太（ミズノ・ケンタ）', '森下 優樹（モリシタ・ユウキ）', '長澤 大地（ナガサワ・ダイチ）'] },
+    namesJa: ['高村 翔太', '藤井 涼介', '水野 健太', '森下 優樹', '長澤 大地'] },
   { id: 'osaka', name: 'OSAKA CENTRAL BULLS', code: 'OSK', color: 0xefb969, trim: 0x4d2c22, names: ['Takuma Inoue', 'Keisuke Nishida', 'Masato Fujimoto', 'Hiroki Uemura', 'Naoya Ishibashi'],
-    namesJa: ['井上 拓真（イノウエ・タクマ）', '西田 圭介（ニシダ・ケイスケ）', '藤本 正人（フジモト・マサト）', '上村 裕樹（ウエムラ・ヒロキ）', '石橋 直也（イシバシ・ナオヤ）'] },
+    namesJa: ['井上 拓真', '西田 圭介', '藤本 正人', '上村 裕樹', '石橋 直也'] },
   { id: 'seoul', name: 'SEOUL RIVER LIONS', code: 'SEL', color: 0xeaa8ab, trim: 0x522d44, names: ['Min-jun Park', 'Jae-hyun Kim', 'Ji-hoon Lee', 'Seung-woo Choi', 'Do-yun Kang'],
     namesJa: ['パク・ミンジュン', 'キム・ジェヒョン', 'イ・ジフン', 'チェ・スンウ', 'カン・ドユン'] },
   { id: 'sydney', name: 'SYDNEY HARBOUR COMETS', code: 'SYD', color: 0xa6ddaf, trim: 0x244c3c, names: ['Liam Henderson', 'Oliver Mitchell', 'Ethan McKenzie', 'Jack Thompson', 'Noah Campbell'],
