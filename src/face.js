@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
 // Face variation with regional character. Each face type bundles an eye
 // shape, a brow shape, iris colours, nose/lip proportions and a coherent
@@ -91,24 +92,56 @@ export function faceFor(pool, seed) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Cube-based head construction. Every part — cranium, jaw, sockets, eyes,
+// nose, ears and hair — is a box or a softly rounded box, matching the
+// blocky low-poly bodies. Base coordinates fit a head about .21 wide;
+// f scales them (basketball uses 1.16).
+// ---------------------------------------------------------------------------
+
+function part(head, geo, mat, x, y, z, f) {
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(x * f, y * f, z * f);
+  m.castShadow = true;
+  head.add(m);
+  return m;
+}
+const rbox = (w, h, d, r, f) => new RoundedBoxGeometry(w * f, h * f, d * f, 2, r * f);
+const box = (w, h, d, f) => new THREE.BoxGeometry(w * f, h * f, d * f);
+
+// Cranium, lower face/jaw, chin, brow ridge, eye sockets and cheekbones.
+export function buildHead(head, material, skinTone, f = 1) {
+  const skin = material(skinTone);
+  const socket = material(new THREE.Color(skinTone).multiplyScalar(.74).getHex());
+  part(head, rbox(.21, .22, .215, .05, f), skin, 0, .02, 0, f);              // cranium
+  part(head, rbox(.168, .13, .18, .04, f), skin, 0, -.072, .012, f);         // jaw / lower face
+  part(head, box(.075, .03, .05, f), skin, 0, -.142, .042, f);               // chin
+  part(head, box(.172, .028, .032, f), skin, 0, .04, .098, f);               // brow ridge
+  for (const side of [-1, 1]) {
+    part(head, box(.054, .06, .014, f), socket, side * .045, .002, .1, f);   // eye socket
+    const cheek = part(head, box(.05, .042, .02, f), skin, side * .07, -.048, .082, f);
+    cheek.rotation.y = -side * .25;                                          // cheekbone
+  }
+}
+
 const EYE_GEOMETRY = {
-  almond: { r: .02, sx: 1, sy: 1.18, sz: .55, z: .104 },
-  round: { r: .0215, sx: 1.02, sy: 1.0, sz: .6, z: .104 },
-  narrow: { r: .02, sx: 1.2, sy: .7, sz: .5, z: .104 },
-  hooded: { r: .02, sx: 1, sy: 1.1, sz: .55, z: .104 },
-  deep: { r: .02, sx: 1, sy: 1.15, sz: .5, z: .099 },
-  wide: { r: .0205, sx: 1.05, sy: 1.15, sz: .55, z: .104 },
+  almond: { w: .034, h: .038, z: .108 },
+  round: { w: .036, h: .042, z: .108 },
+  narrow: { w: .037, h: .024, z: .108 },
+  hooded: { w: .034, h: .034, z: .108 },
+  deep: { w: .034, h: .037, z: .103 },
+  wide: { w: .035, h: .038, z: .108 },
 };
 const BROW_GEOMETRY = {
-  straight: { w: .043, h: .009, y: .052, rot: .05 },
-  thin: { w: .04, h: .0055, y: .054, rot: .1 },
-  thick: { w: .049, h: .015, y: .05, rot: .12 },
-  arched: { w: .043, h: .008, y: .059, rot: .33 },
-  angled: { w: .045, h: .011, y: .051, rot: -.24 },
+  straight: { w: .044, h: .009, y: .062, rot: .05 },
+  thin: { w: .041, h: .0055, y: .064, rot: .1 },
+  thick: { w: .05, h: .015, y: .06, rot: .12 },
+  arched: { w: .044, h: .008, y: .069, rot: .33 },
+  angled: { w: .046, h: .011, y: .061, rot: -.24 },
 };
 
-// Builds eyes (white + iris + pupil), brows, nose, mouth and ears on a
-// head group whose skull radius is .125 * f (f = 1.16 for basketball).
+// Cube eyes (white, iris, pupil), shaped brows, a box nose with bridge,
+// tip and base, a mouth and box ears.
 export function addFaceFeatures(head, material, face, skin, hairMaterial, f = 1) {
   const dark = material(0x201914);
   const white = material(0xf4efe6);
@@ -116,164 +149,97 @@ export function addFaceFeatures(head, material, face, skin, hairMaterial, f = 1)
   const irisMaterial = material(face?.iris ?? 0x2a1a10);
   const eye = EYE_GEOMETRY[face?.eyeShape] ?? EYE_GEOMETRY.almond;
   const brow = BROW_GEOMETRY[face?.browShape] ?? BROW_GEOMETRY.straight;
-  const mesh = (geo, mat, x, y, z) => {
-    const m = new THREE.Mesh(geo, mat);
-    m.position.set(x * f, y * f, z * f);
-    m.castShadow = true;
-    head.add(m);
-    return m;
-  };
-  const eyeX = (face?.eyeShape === 'wide' ? .052 : .0445);
+  const eyeX = (face?.eyeShape === 'wide' ? .052 : .045);
   for (const side of [-1, 1]) {
-    const eyeWhite = mesh(new THREE.SphereGeometry(eye.r * f, 8, 6), white, side * eyeX, .018, eye.z);
-    eyeWhite.scale.set(eye.sx, eye.sy, eye.sz);
-    const iris = mesh(new THREE.SphereGeometry(.0135 * f, 8, 6), irisMaterial, side * eyeX, .018, eye.z + .0105);
-    iris.scale.set(1, 1.1, .5);
-    const pupil = mesh(new THREE.SphereGeometry(.0072 * f, 8, 6), dark, side * eyeX, .018, eye.z + .0165);
-    pupil.scale.set(1, 1.15, .5);
+    part(head, box(eye.w, eye.h, .012, f), white, side * eyeX, .002, eye.z, f);
+    part(head, box(.016, .02, .006, f), irisMaterial, side * eyeX, .002, eye.z + .008, f);
+    part(head, box(.008, .011, .004, f), dark, side * eyeX, .002, eye.z + .012, f);
     if (face?.eyeShape === 'hooded') {
-      const lid = mesh(new THREE.BoxGeometry(.046 * f, .013 * f, .016 * f), skin, side * eyeX, .034, .106);
-      lid.rotation.x = -.15;
+      const lid = part(head, box(.04, .015, .014, f), skin, side * eyeX, .024, .106, f);
+      lid.rotation.x = -.12;
     }
     if (face?.eyeShape === 'deep') {
-      mesh(new THREE.BoxGeometry(.052 * f, .015 * f, .02 * f), skin, side * eyeX, .05, .098);
+      part(head, box(.052, .014, .02, f), skin, side * eyeX, .032, .1, f);   // brow bone
     }
-    const browMesh = mesh(new THREE.BoxGeometry(brow.w * f, brow.h * f, .012 * f), hairMaterial, side * (eyeX + .0005), brow.y, .11);
+    const browMesh = part(head, box(brow.w, brow.h, .012, f), hairMaterial, side * eyeX, brow.y, .106, f);
     browMesh.rotation.z = -side * brow.rot;
-    const ear = mesh(new THREE.SphereGeometry(.026 * f, 8, 6), skin, side * .104, -.006, 0);
-    ear.scale.set(.45, 1, .72);
+    part(head, box(.018, .052, .038, f), skin, side * .109, -.012, 0, f);    // ear
   }
   const noseScale = face?.nose ?? 1;
-  // Nose bridge running down from between the brows, then tip and base,
-  // so the nose is a structure, not a ball stuck on the face.
-  const bridge = mesh(new THREE.BoxGeometry(.02 * f, .078 * f, .017 * f), skin, 0, .006, .107);
-  bridge.rotation.x = -.1;
-  const nose = mesh(new THREE.SphereGeometry(.024 * f, 8, 6), skin, 0, -.018, .117);
-  nose.scale.set(.75 * noseScale, 1.28, noseScale > 1.2 ? .78 : .95);
-  const base = mesh(new THREE.SphereGeometry(.021 * f, 8, 6), skin, 0, -.041, .106);
-  base.scale.set(1.05 * noseScale, .5, .8);
+  // Nose bridge from between the brows down to the tip, plus a base.
+  const bridge = part(head, box(.02, .082, .02, f), skin, 0, -.002, .108, f);
+  bridge.rotation.x = -.06;
+  part(head, box(.036 * noseScale, .032, .026, f), skin, 0, -.052, .11, f);  // tip
+  part(head, box(.05 * noseScale, .016, .02, f), skin, 0, -.072, .102, f);   // base
   const lipScale = face?.lips ?? 1;
-  mesh(new THREE.BoxGeometry(.042 * lipScale * f, (lipScale > 1.15 ? .0135 : .009) * f, .012 * f), lip, 0, -.07, .103);
+  part(head, box(.042 * lipScale, lipScale > 1.15 ? .014 : .009, .012, f), lip, 0, -.1, .1, f); // mouth
 }
 
-// Plausible everyday hairstyles, built from caps, swept fringe boxes and
-// rounded volumes — no spikes or cone tufts. Base coordinates match a
-// .125-radius head; f scales them (basketball uses 1.16).
 export const HAIRSTYLES = ['short', 'buzz', 'mash', 'sidepart', 'centerpart', 'slickback', 'wavy', 'curly', 'ponytail', 'long', 'afro'];
+
+// Cube-based plausible hairstyles: hair is assembled from top, back, side
+// and fringe boxes (slightly rounded), like a low-poly haircut.
 export function addHairStyle(head, material, style, hairColor, f = 1) {
   const hair = material(hairColor);
-  const mesh = (geo, x, y, z) => {
-    const m = new THREE.Mesh(geo, hair);
-    m.position.set(x * f, y * f, z * f);
-    m.castShadow = true;
-    head.add(m);
+  const top = (w, h, d, y, z = 0, r = .03) => part(head, rbox(w, h, d, r, f), hair, 0, y, z, f);
+  const back = (w, h, d, y) => part(head, rbox(w, h, d, .025, f), hair, 0, y, -.1, f);
+  const sides = (w, h, d, y) => {
+    for (const side of [-1, 1]) part(head, rbox(w, h, d, .02, f), hair, side * .101, y, 0, f);
+  };
+  const fringe = (w, h, d, x, y, z, rotZ = 0) => {
+    const m = part(head, box(w, h, d, f), hair, x, y, z, f);
+    m.rotation.z = rotZ;
     return m;
   };
-  const cap = (theta, r = .129, y = .028, z = -.008) =>
-    mesh(new THREE.SphereGeometry(r * f, 10, 6, 0, Math.PI * 2, 0, Math.PI * theta), 0, y, z);
+  const shortBase = () => { top(.226, .075, .236, .108); back(.226, .13, .05, .01); sides(.046, .09, .19, .015); };
   switch (style) {
-    case 'buzz': {
-      const c = cap(.48, .127); c.scale.set(.87, .8, .94); break;
-    }
-    case 'mash': {
-      const c = cap(.68, .133); c.scale.set(.9, 1, .97); break;
-    }
-    case 'sidepart': {
-      const c = cap(.54); c.scale.set(.88, .96, .95);
-      const fringe = mesh(new THREE.BoxGeometry(.115 * f, .03 * f, .05 * f), -.018, .098, .098);
-      fringe.rotation.set(0, .12, -.16);
+    case 'buzz':
+      top(.218, .042, .228, .122); back(.218, .085, .045, .028); sides(.04, .055, .18, .038);
       break;
-    }
-    case 'centerpart': {
-      const c = cap(.54); c.scale.set(.88, .96, .95);
-      for (const side of [-1, 1]) {
-        const fringe = mesh(new THREE.BoxGeometry(.056 * f, .028 * f, .046 * f), side * .033, .098, .1);
-        fringe.rotation.z = -side * .24;
-      }
+    case 'mash':
+      top(.233, .09, .243, .102); back(.233, .2, .055, -.028); sides(.05, .17, .196, -.018);
+      fringe(.21, .055, .05, 0, .032, .102);
       break;
-    }
+    case 'sidepart':
+      shortBase();
+      fringe(.13, .034, .055, -.034, .064, .104, -.14);
+      break;
+    case 'centerpart':
+      shortBase();
+      fringe(.075, .034, .05, -.046, .064, .104, .2);
+      fringe(.075, .034, .05, .046, .064, .104, -.2);
+      break;
     case 'slickback': {
-      const c = cap(.5, .129, .03, -.024); c.scale.set(.88, .96, .95);
-      const sweep = mesh(new THREE.BoxGeometry(.1 * f, .026 * f, .115 * f), 0, .122, -.012);
-      sweep.rotation.x = .16;
+      const t = top(.226, .07, .24, .11, -.02); t.rotation.x = .1;
+      back(.226, .18, .05, -.008); sides(.046, .11, .19, .005);
       break;
     }
-    case 'wavy': {
-      const c = cap(.56); c.scale.set(.88, .96, .95);
-      const spots = [[-.048, .01], [-.024, -.018], [0, .015], [.024, -.01], [.048, .005]];
-      for (const [x, z] of spots) {
-        const puff = mesh(new THREE.SphereGeometry(.04 * f, 8, 6), x, .118, z);
-        puff.scale.set(1, .55, 1);
+    case 'wavy':
+      shortBase();
+      for (const [x, z, r] of [[-.06, .01, .12], [0, -.015, -.06], [.06, .008, .1]]) {
+        const m = part(head, rbox(.072, .036, .095, .016, f), hair, x, .148, z, f);
+        m.rotation.y = r;
       }
       break;
-    }
-    case 'curly': {
-      const c = cap(.46); c.scale.set(.88, .9, .95);
-      mesh(new THREE.SphereGeometry(.037 * f, 8, 6), 0, .14, 0);
-      for (let i = 0; i < 8; i++) {
-        const a = i / 8 * Math.PI * 2;
-        mesh(new THREE.SphereGeometry(.036 * f, 8, 6), Math.cos(a) * .045, .12, Math.sin(a) * .043);
+    case 'curly':
+      top(.226, .05, .236, .118); back(.226, .11, .05, .02); sides(.046, .07, .19, .028);
+      part(head, rbox(.08, .062, .08, .026, f), hair, 0, .152, 0, f);
+      for (const [x, z] of [[-.052, -.045], [.052, -.045], [-.052, .048], [.052, .048]]) {
+        part(head, rbox(.07, .055, .07, .024, f), hair, x, .146, z, f);
       }
       break;
-    }
-    case 'ponytail': {
-      const c = cap(.56); c.scale.set(.88, .96, .95);
-      mesh(new THREE.SphereGeometry(.042 * f, 8, 6), 0, .055, -.128);
-      const tail = mesh(new THREE.BoxGeometry(.052 * f, .14 * f, .032 * f), 0, -.045, -.15);
-      tail.rotation.x = .1;
+    case 'ponytail':
+      top(.228, .08, .238, .106); back(.228, .14, .05, .005); sides(.047, .1, .19, .01);
+      part(head, box(.06, .06, .06, f), hair, 0, .028, -.138, f);
+      part(head, box(.055, .15, .04, f), hair, 0, -.062, -.152, f);
       break;
-    }
-    case 'long': {
-      const c = cap(.62, .131); c.scale.set(.89, .98, .96);
-      const back = mesh(new THREE.BoxGeometry(.172 * f, .19 * f, .042 * f), 0, -.055, -.104);
-      back.rotation.x = .05;
-      for (const side of [-1, 1]) mesh(new THREE.BoxGeometry(.032 * f, .13 * f, .1 * f), side * .104, -.035, -.005);
+    case 'long':
+      top(.23, .085, .24, .104); back(.23, .3, .05, -.088); sides(.05, .24, .196, -.058);
       break;
-    }
-    case 'afro': {
-      const c = cap(.42); c.scale.set(.88, .9, .95);
-      const volume = mesh(new THREE.SphereGeometry(.104 * f, 10, 8), 0, .07, -.004);
-      volume.scale.set(1.06, .94, 1.06);
-      for (let i = 0; i < 6; i++) {
-        const a = i / 6 * Math.PI * 2;
-        mesh(new THREE.SphereGeometry(.048 * f, 8, 6), Math.cos(a) * .07, .128, Math.sin(a) * .066);
-      }
+    case 'afro':
+      part(head, rbox(.272, .235, .272, .085, f), hair, 0, .062, 0, f);
       break;
-    }
-    default: { // 'short' and anything unknown: a clean short cut.
-      const c = cap(.52); c.scale.set(.88, .95, .95);
-    }
-  }
-}
-
-// Composite head shape instead of a single sphere: cranium, a lower face
-// mass, jaw and chin, a brow ridge, shaded eye sockets and cheekbones, so
-// the face has structure the features can sit in.
-export function buildHead(head, material, skinTone, f = 1) {
-  const skin = material(skinTone);
-  const socketTone = new THREE.Color(skinTone).multiplyScalar(.74).getHex();
-  const socket = material(socketTone);
-  const mesh = (geo, mat, x, y, z) => {
-    const m = new THREE.Mesh(geo, mat);
-    m.position.set(x * f, y * f, z * f);
-    m.castShadow = true;
-    head.add(m);
-    return m;
-  };
-  const cranium = mesh(new THREE.SphereGeometry(.125 * f, 14, 12), skin, 0, 0, 0);
-  cranium.scale.set(.84, 1.05, .92);
-  const faceBase = mesh(new THREE.SphereGeometry(.104 * f, 12, 10), skin, 0, -.036, .02);
-  faceBase.scale.set(.8, .84, .86);
-  const jaw = mesh(new THREE.SphereGeometry(.082 * f, 10, 8), skin, 0, -.098, .02);
-  jaw.scale.set(.8, .52, .8);
-  const chin = mesh(new THREE.SphereGeometry(.046 * f, 8, 6), skin, 0, -.117, .05);
-  chin.scale.set(.58, .36, .5);
-  const browRidge = mesh(new THREE.SphereGeometry(.092 * f, 10, 8), skin, 0, .05, .052);
-  browRidge.scale.set(1.06, .34, .6);
-  for (const side of [-1, 1]) {
-    const socketDisc = mesh(new THREE.SphereGeometry(.03 * f, 8, 6), socket, side * .0445, .015, .094);
-    socketDisc.scale.set(1.05, 1.2, .42);
-    const cheek = mesh(new THREE.SphereGeometry(.036 * f, 8, 6), skin, side * .066, -.032, .062);
-    cheek.scale.set(1, .72, .55);
+    default: // 'short'
+      shortBase();
   }
 }
