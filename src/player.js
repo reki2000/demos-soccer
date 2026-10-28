@@ -61,10 +61,12 @@ export function createPlayer(p, team) {
   // Kit detailing: a chest band and collar in the trim colour break up the
   // plain cylinder and read as a designed shirt at broadcast distance.
   segment(torso, .175, .168, .055, trim, .145).scale.z = .615;
-  segment(torso, .082, .092, .05, trim, .545).scale.z = .8;
+  mesh(torso, new THREE.CylinderGeometry(.082, .092, .05, 8), trim, 0, .545, -.04).scale.z = .8;
   const head = joint(torso, 0, .72);
-  // The imported head brings its own slimmed neck, which overlaps the
-  // collar; it seats high enough that the jaw never sinks into it.
+  // The imported head is cut at the jaw line; a slim neck cylinder on
+  // the torso bridges the collar to the jaw (the model's own long,
+  // slanted neck looked wrong against the stylised body).
+  mesh(torso, new THREE.CylinderGeometry(.05, .05, .16, 8), skin, 0, .60, -.04);
   addHead(head, profile);
   const legs = [], arms = [];
   for (const side of [-1, 1]) {

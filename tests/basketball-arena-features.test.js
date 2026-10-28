@@ -206,10 +206,10 @@ test('basketball athletes have faces, varied hair and a hip-pivot torso',()=>{
   assert.match(scene,/\.99\+\(guard\?/);
 });
 
-test('basketball heads use the shared imported head at 1.16 scale',()=>{
+test('basketball heads use the shared imported head at 1.02 scale',()=>{
   const scene=readFileSync(new URL('../basketball/scene.js',import.meta.url),'utf8');
   assert.match(scene,/buildImportedHead\(head, material, \{/);
-  assert.match(scene,/f: 1\.16/);
+  assert.match(scene,/f: 1\.02/);
 });
 
 test('basketball play-by-play speaks faster than the default rate',()=>{

@@ -99,17 +99,20 @@ export function createAthlete(player, team) {
   // Jersey detailing: chest stripe and neckline in the trim colour.
   mesh(torso,new THREE.CylinderGeometry(.184,.178,.05,8),trim,0,.45,0)
     .scale.set(1.11,1,.83);
-  mesh(torso,new THREE.CylinderGeometry(.088,.098,.045,8),trim,0,.585,0)
+  mesh(torso,new THREE.CylinderGeometry(.088,.098,.045,8),trim,0,.585,-.045)
     .scale.set(1,1,.9);
+  // The imported head is cut at the jaw line; a slim neck cylinder on
+  // the torso bridges the jersey to the jaw (the model's own long,
+  // slanted neck looked wrong against the stylised body).
+  mesh(torso, new THREE.CylinderGeometry(.05, .05, .19, 8), skin, 0, .695, -.045);
   const head = new THREE.Group();
   head.position.set(0, .83, 0);
   torso.add(head);
-  // Imported CC0 head (shared with soccer), morphed by face type; its
-  // own slimmed neck meets the jersey neckline, jaw clear of the neck.
+  // Imported CC0 head (shared with soccer), morphed by face type.
   buildImportedHead(head, material, {
     face, skinTone: face.skin, hairColor,
     hairstyle: HAIR_STYLES_B[(player.id * 7 + player.slot * 3) % HAIR_STYLES_B.length],
-    seed: faceSeed, f: 1.16, seat: -.25,
+    seed: faceSeed, f: 1.02, seat: -.25,
   });
   const legs = [], arms = [];
   for (const side of [-1, 1]) {
