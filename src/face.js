@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { HEAD_SKIN, HEAD_EYES, HEAD_HAIR } from './head-model.js';
 
 // Face variation with regional character. Each face type bundles an eye
 // shape, a brow shape, iris colours, nose/lip proportions and a coherent
@@ -91,155 +91,176 @@ export function faceFor(pool, seed) {
     nose: def.nose, lips: def.lips,
   };
 }
-
 // ---------------------------------------------------------------------------
-// Cube-based head construction. Every part — cranium, jaw, sockets, eyes,
-// nose, ears and hair — is a box or a softly rounded box, matching the
-// blocky low-poly bodies. Base coordinates fit a head about .21 wide;
-// f scales them (basketball uses 1.16).
+// Imported head (head-model.js: Quaternius Universal Base Characters, CC0)
+// reshaped per player. The base mesh is morphed in its source space —
+// neck slimming, jaw width and chin, cranium proportions, nose width /
+// height / lift and lip fullness on the skin; eye gap and eye size on
+// the eye parts; brow thickness / angle and jaw-following on the hair —
+// then converted to game space. Morph strength is deliberately strong
+// so the six face types read as different people at game distance.
+// f scales the finished head (basketball uses 1.16).
 // ---------------------------------------------------------------------------
-
-function part(head, geo, mat, x, y, z, f) {
-  const m = new THREE.Mesh(geo, mat);
-  m.position.set(x * f, y * f, z * f);
-  m.castShadow = true;
-  head.add(m);
-  return m;
-}
-const rbox = (w, h, d, r, f) => new RoundedBoxGeometry(w * f, h * f, d * f, 2, r * f);
-const box = (w, h, d, f) => new THREE.BoxGeometry(w * f, h * f, d * f);
-
-// Cranium, lower face/jaw, chin, brow ridge, eye sockets and cheekbones.
-export function buildHead(head, material, skinTone, f = 1) {
-  const skin = material(skinTone);
-  const socket = material(new THREE.Color(skinTone).multiplyScalar(.74).getHex());
-  part(head, rbox(.21, .22, .215, .05, f), skin, 0, .02, 0, f);              // cranium
-  part(head, rbox(.168, .13, .18, .04, f), skin, 0, -.072, .012, f);         // jaw / lower face
-  part(head, box(.075, .03, .05, f), skin, 0, -.142, .042, f);               // chin
-  part(head, box(.172, .028, .032, f), skin, 0, .04, .098, f);               // brow ridge
-  for (const side of [-1, 1]) {
-    part(head, box(.054, .06, .014, f), socket, side * .045, .002, .1, f);   // eye socket
-    const cheek = part(head, box(.05, .042, .02, f), skin, side * .07, -.048, .082, f);
-    cheek.rotation.y = -side * .25;                                          // cheekbone
-  }
-}
-
-const EYE_GEOMETRY = {
-  almond: { w: .034, h: .038, z: .108 },
-  round: { w: .036, h: .042, z: .108 },
-  narrow: { w: .037, h: .024, z: .108 },
-  hooded: { w: .034, h: .034, z: .108 },
-  deep: { w: .034, h: .037, z: .103 },
-  wide: { w: .035, h: .038, z: .108 },
-};
-const BROW_GEOMETRY = {
-  straight: { w: .044, h: .009, y: .062, rot: .05 },
-  thin: { w: .041, h: .0055, y: .064, rot: .1 },
-  thick: { w: .05, h: .015, y: .06, rot: .12 },
-  arched: { w: .044, h: .008, y: .069, rot: .33 },
-  angled: { w: .046, h: .011, y: .061, rot: -.24 },
-};
-
-// Cube eyes (white, iris, pupil), shaped brows, a box nose with bridge,
-// tip and base, a mouth and box ears.
-export function addFaceFeatures(head, material, face, skin, hairMaterial, f = 1) {
-  const dark = material(0x201914);
-  const white = material(0xf4efe6);
-  const lip = material(0x8a4a3c);
-  const irisMaterial = material(face?.iris ?? 0x2a1a10);
-  const eye = EYE_GEOMETRY[face?.eyeShape] ?? EYE_GEOMETRY.almond;
-  const brow = BROW_GEOMETRY[face?.browShape] ?? BROW_GEOMETRY.straight;
-  const eyeX = (face?.eyeShape === 'wide' ? .052 : .045);
-  for (const side of [-1, 1]) {
-    part(head, box(eye.w, eye.h, .012, f), white, side * eyeX, .002, eye.z, f);
-    part(head, box(.016, .02, .006, f), irisMaterial, side * eyeX, .002, eye.z + .008, f);
-    part(head, box(.008, .011, .004, f), dark, side * eyeX, .002, eye.z + .012, f);
-    if (face?.eyeShape === 'hooded') {
-      const lid = part(head, box(.04, .015, .014, f), skin, side * eyeX, .024, .106, f);
-      lid.rotation.x = -.12;
-    }
-    if (face?.eyeShape === 'deep') {
-      part(head, box(.052, .014, .02, f), skin, side * eyeX, .032, .1, f);   // brow bone
-    }
-    const browMesh = part(head, box(brow.w, brow.h, .012, f), hairMaterial, side * eyeX, brow.y, .106, f);
-    browMesh.rotation.z = -side * brow.rot;
-    part(head, box(.018, .052, .038, f), skin, side * .109, -.012, 0, f);    // ear
-  }
-  const noseScale = face?.nose ?? 1;
-  // Nose bridge from between the brows down to the tip, plus a base.
-  const bridge = part(head, box(.02, .082, .02, f), skin, 0, -.002, .108, f);
-  bridge.rotation.x = -.06;
-  part(head, box(.036 * noseScale, .032, .026, f), skin, 0, -.052, .11, f);  // tip
-  part(head, box(.05 * noseScale, .016, .02, f), skin, 0, -.072, .102, f);   // base
-  const lipScale = face?.lips ?? 1;
-  part(head, box(.042 * lipScale, lipScale > 1.15 ? .014 : .009, .012, f), lip, 0, -.1, .1, f); // mouth
-}
 
 export const HAIRSTYLES = ['short', 'buzz', 'mash', 'sidepart', 'centerpart', 'slickback', 'wavy', 'curly', 'ponytail', 'long', 'afro'];
 
-// Cube-based plausible hairstyles: hair is assembled from top, back, side
-// and fringe boxes (slightly rounded), like a low-poly haircut.
-export function addHairStyle(head, material, style, hairColor, f = 1) {
-  const hair = material(hairColor);
-  const top = (w, h, d, y, z = 0, r = .03) => part(head, rbox(w, h, d, r, f), hair, 0, y, z, f);
-  const back = (w, h, d, y) => part(head, rbox(w, h, d, .025, f), hair, 0, y, -.1, f);
-  const sides = (w, h, d, y) => {
-    for (const side of [-1, 1]) part(head, rbox(w, h, d, .02, f), hair, side * .101, y, 0, f);
-  };
-  const fringe = (w, h, d, x, y, z, rotZ = 0) => {
-    const m = part(head, box(w, h, d, f), hair, x, y, z, f);
-    m.rotation.z = rotZ;
-    return m;
-  };
-  const shortBase = () => { top(.226, .075, .236, .108); back(.226, .13, .05, .01); sides(.046, .09, .19, .015); };
-  switch (style) {
-    case 'buzz':
-      top(.218, .042, .228, .122); back(.218, .085, .045, .028); sides(.04, .055, .18, .038);
-      break;
-    case 'mash':
-      top(.233, .09, .243, .102); back(.233, .2, .055, -.028); sides(.05, .17, .196, -.018);
-      fringe(.21, .055, .05, 0, .032, .102);
-      break;
-    case 'sidepart':
-      shortBase();
-      fringe(.13, .034, .055, -.034, .064, .104, -.14);
-      break;
-    case 'centerpart':
-      shortBase();
-      fringe(.075, .034, .05, -.046, .064, .104, .2);
-      fringe(.075, .034, .05, .046, .064, .104, -.2);
-      break;
-    case 'slickback': {
-      const t = top(.226, .07, .24, .11, -.02); t.rotation.x = .1;
-      back(.226, .18, .05, -.008); sides(.046, .11, .19, .005);
-      break;
-    }
-    case 'wavy':
-      shortBase();
-      for (const [x, z, r] of [[-.06, .01, .12], [0, -.015, -.06], [.06, .008, .1]]) {
-        const m = part(head, rbox(.072, .036, .095, .016, f), hair, x, .148, z, f);
-        m.rotation.y = r;
-      }
-      break;
-    case 'curly':
-      top(.226, .05, .236, .118); back(.226, .11, .05, .02); sides(.046, .07, .19, .028);
-      part(head, rbox(.08, .062, .08, .026, f), hair, 0, .152, 0, f);
-      for (const [x, z] of [[-.052, -.045], [.052, -.045], [-.052, .048], [.052, .048]]) {
-        part(head, rbox(.07, .055, .07, .024, f), hair, x, .146, z, f);
-      }
-      break;
-    case 'ponytail':
-      top(.228, .08, .238, .106); back(.228, .14, .05, .005); sides(.047, .1, .19, .01);
-      part(head, box(.06, .06, .06, f), hair, 0, .028, -.138, f);
-      part(head, box(.055, .15, .04, f), hair, 0, -.062, -.152, f);
-      break;
-    case 'long':
-      top(.23, .085, .24, .104); back(.23, .3, .05, -.088); sides(.05, .24, .196, -.058);
-      break;
-    case 'afro':
-      part(head, rbox(.272, .235, .272, .085, f), hair, 0, .062, 0, f);
-      break;
-    default: // 'short'
-      shortBase();
+// Per-type morph parameters (1 = the base model unchanged).
+const HEAD_MORPHS = {
+  eastAsian:  { jaw: .90, chin: .95, eyeGap: -.008, eyeW: 1.08, eyeH: .68, browThick: .80, browAngle: .08, browLift: .003, noseW: .92, noseH: .92, noseLift: -.007, lips: .92, headW: .99, headL: .98 },
+  european:   { jaw: .94, chin: 1.06, eyeGap: .004, eyeW: .90, eyeH: .90, browThick: 1.18, browAngle: -.09, browLift: 0, noseW: .80, noseH: 1.16, noseLift: .007, lips: .85, headW: .93, headL: 1.06 },
+  african:    { jaw: 1.09, chin: 1.00, eyeGap: .008, eyeW: 1.02, eyeH: 1.02, browThick: 1.10, browAngle: .03, browLift: .003, noseW: 1.38, noseH: .90, noseLift: -.004, lips: 1.50, headW: 1.04, headL: 1.00 },
+  latin:      { jaw: 1.01, chin: 1.01, eyeGap: .002, eyeW: 1.00, eyeH: .86, browThick: 1.25, browAngle: .16, browLift: .005, noseW: 1.00, noseH: 1.03, noseLift: .003, lips: 1.18, headW: .99, headL: 1.00 },
+  middleEast: { jaw: 1.04, chin: 1.04, eyeGap: 0, eyeW: 1.03, eyeH: .84, browThick: 1.45, browAngle: -.14, browLift: -.003, noseW: .92, noseH: 1.18, noseLift: .010, lips: 1.02, headW: .96, headL: 1.03 },
+  southAsian: { jaw: .93, chin: .98, eyeGap: .002, eyeW: 1.05, eyeH: .94, browThick: 1.32, browAngle: .05, browLift: .003, noseW: .98, noseH: 1.07, noseLift: .005, lips: 1.14, headW: .97, headL: 1.00 },
+};
+const NECK_SCALE = .55; // the model's neck at about half thickness
+
+function resolveMorph(face, seed) {
+  const p = { ...(HEAD_MORPHS[face?.type] ?? HEAD_MORPHS.eastAsian) };
+  // The face system's eye/brow shape picks keep their meaning as morphs.
+  switch (face?.eyeShape) {
+    case 'narrow': p.eyeH *= .85; break;
+    case 'round': p.eyeH *= 1.12; p.eyeW *= .96; break;
+    case 'hooded': p.eyeH *= .9; p.browLift -= .004; break;
+    case 'deep': p.eyeW *= .92; break;
+    case 'wide': p.eyeGap += .004; break;
   }
+  switch (face?.browShape) {
+    case 'arched': p.browAngle += .12; break;
+    case 'angled': p.browAngle -= .12; break;
+    case 'thick': p.browThick *= 1.15; break;
+    case 'thin': p.browThick *= .78; break;
+    case 'straight': p.browAngle *= .3; break;
+  }
+  // Deterministic per-player jitter so a squad is not one cloned face.
+  const jit = (off, amt) => (hash(seed + off) / 4294967296 - .5) * 2 * amt;
+  for (const k of ['jaw', 'chin', 'eyeW', 'eyeH', 'browThick', 'noseW', 'noseH', 'lips', 'headW', 'headL']) p[k] += jit(k.length * 131 + k.charCodeAt(0), .03);
+  p.eyeGap += jit(7331, .002);
+  p.noseLift += jit(7337, .002);
+  return p;
+}
+
+const clamp01 = v => Math.max(0, Math.min(1, v));
+const gauss = (x, y, z, cx, cy, cz, s) => Math.exp(-(((x - cx) ** 2 + (y - cy) ** 2 + (z - cz) ** 2) / (s * s)));
+
+function morphSkin(P, p) {
+  const out = new Float32Array(P.length);
+  for (let i = 0; i < P.length; i += 3) {
+    let x = P[i], y = P[i + 1], z = P[i + 2];
+    if (z < 4.32) { // slim the neck, fading out under the jaw
+      const f = clamp01((4.32 - z) / .16);
+      const s = 1 - (1 - NECK_SCALE) * f * f;
+      x *= s; y = .02 + (y - .02) * s;
+    }
+    if (z < 4.42) { // jaw width; chin protrusion on the front
+      const f = Math.pow(clamp01((4.42 - z) / .34), .7);
+      x *= 1 + (p.jaw - 1) * f;
+      if (z < 4.24 && y < -.05) y *= 1 + (p.chin - 1) * f;
+    }
+    if (z > 4.26) { // cranium width / length
+      const f = clamp01((z - 4.26) / .2);
+      x *= 1 + (p.headW - 1) * f;
+      y = -.02 + (y + .02) * (1 + (p.headL - 1) * f);
+    }
+    const wn = gauss(x, y, z, 0, -.255, 4.365, .088); // nose cluster
+    if (wn > .01) {
+      x *= 1 + (p.noseW - 1) * wn;
+      z = 4.365 + (z - 4.365) * (1 + (p.noseH - 1) * wn) + p.noseLift * wn;
+      y = -.255 + (y + .255) * (1 + (p.noseW - 1) * .35 * wn);
+    }
+    const wl = gauss(x, y, z, 0, -.225, 4.235, .07); // mouth / lips
+    if (wl > .01) z = 4.235 + (z - 4.235) * (1 + (p.lips - 1) * wl);
+    out[i] = x; out[i + 1] = y; out[i + 2] = z;
+  }
+  return out;
+}
+
+function morphEyes(P, p) {
+  const out = new Float32Array(P.length);
+  for (let i = 0; i < P.length; i += 3) {
+    const side = P[i] >= 0 ? 1 : -1;
+    out[i] = side * .108 + (P[i] - side * .108) * p.eyeW + side * p.eyeGap;
+    out[i + 1] = P[i + 1];
+    out[i + 2] = 4.467 + (P[i + 2] - 4.467) * p.eyeH;
+  }
+  return out;
+}
+
+function morphHair(P, p, afro) {
+  const out = new Float32Array(P.length);
+  for (let i = 0; i < P.length; i += 3) {
+    let x = P[i], y = P[i + 1], z = P[i + 2];
+    if (z < 4.42) { // beard and sideburns follow the jaw
+      const f = Math.pow(clamp01((4.42 - z) / .34), .7);
+      x *= 1 + (p.jaw - 1) * f;
+    }
+    if (z > 4.26) {
+      const f = clamp01((z - 4.26) / .2);
+      x *= 1 + (p.headW - 1) * f;
+      y = -.02 + (y + .02) * (1 + (p.headL - 1) * f);
+    }
+    if (afro && z > 4.3) { // extra volume reads as an afro silhouette
+      x *= 1.16; y = -.02 + (y + .02) * 1.14; z = 4.3 + (z - 4.3) * 1.22;
+    }
+    if (z > 4.49 && z < 4.64 && y < -.15 && Math.abs(x) > .03) { // brow band
+      const side = x >= 0 ? 1 : -1;
+      const bx = side * .11, bz = 4.545;
+      z = bz + (z - bz) * p.browThick + p.browLift;
+      const dx = x - bx, dz = z - bz, a = p.browAngle * side;
+      x = bx + dx * Math.cos(a) - dz * Math.sin(a);
+      z = bz + dx * Math.sin(a) + dz * Math.cos(a);
+    }
+    out[i] = x; out[i + 1] = y; out[i + 2] = z;
+  }
+  return out;
+}
+
+// Source space (z up, face towards -y) -> head-group space (y up, face +z).
+function partGeometry(part, morphed) {
+  const g = new THREE.BufferGeometry();
+  const N = part.n, p2 = new Float32Array(morphed.length), n2 = new Float32Array(N.length);
+  for (let i = 0; i < morphed.length; i += 3) {
+    p2[i] = morphed[i]; p2[i + 1] = morphed[i + 2] - 4.0; p2[i + 2] = -morphed[i + 1];
+    n2[i] = N[i]; n2[i + 1] = N[i + 2]; n2[i + 2] = -N[i + 1];
+  }
+  g.setAttribute('position', new THREE.BufferAttribute(p2, 3));
+  g.setAttribute('normal', new THREE.BufferAttribute(n2, 3));
+  g.setIndex(part.i);
+  return g;
+}
+
+const HAIR_VARIANTS = {
+  short: 'casual', mash: 'casual', centerpart: 'casual', curly: 'casual', ponytail: 'casual',
+  sidepart: 'quiff', wavy: 'quiff', slickback: 'flattop', long: 'flattop',
+  buzz: null, afro: 'casual',
+};
+
+// Build the imported head into the head group: skin (morphed), dark eyes
+// and one of the model's hair variants. About a quarter of short-haired
+// players get the bearded variant. `seat` (in f units) drops the head
+// so its throat reaches the collar while the jaw still clears it — the
+// chin never sinks into the neck, and the neck never floats.
+export function buildImportedHead(head, material, { face, skinTone, hairColor, hairstyle, seed = 0, f = 1, seat = -.2 }) {
+  const p = resolveMorph(face, seed);
+  const smooth = color => { const m = material(color); m.flatShading = false; return m; };
+  const grp = new THREE.Group();
+  grp.scale.setScalar(.42 * f);
+  grp.position.y = seat * f;
+  const skin = new THREE.Mesh(partGeometry(HEAD_SKIN, morphSkin(HEAD_SKIN.p, p)), smooth(skinTone));
+  skin.castShadow = true;
+  grp.add(skin);
+  grp.add(new THREE.Mesh(partGeometry(HEAD_EYES, morphEyes(HEAD_EYES.p, p)), smooth(0x14100e)));
+  let variant = HAIR_VARIANTS[hairstyle] ?? 'casual';
+  if (variant && hairstyle !== 'long' && hash(seed + 777) % 4 === 0) variant = 'beard';
+  if (variant) {
+    const hair = new THREE.Mesh(
+      partGeometry(HEAD_HAIR[variant], morphHair(HEAD_HAIR[variant].p, p, hairstyle === 'afro')),
+      smooth(hairColor));
+    hair.castShadow = true;
+    grp.add(hair);
+  } else { // buzz cut: just the brows
+    grp.add(new THREE.Mesh(partGeometry(HEAD_HAIR.brows, morphHair(HEAD_HAIR.brows.p, p, false)), smooth(hairColor)));
+  }
+  head.add(grp);
+  return grp;
 }

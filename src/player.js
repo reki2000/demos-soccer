@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { getPlayerProfile } from './roster.js';
 import { gaitPose, bodyLean } from './gait.js';
-import { addFaceFeatures, addHairStyle, buildHead } from './face.js';
+import { buildImportedHead } from './face.js';
 
 const material = color => new THREE.MeshStandardMaterial({ color, roughness: .85, flatShading: true });
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
@@ -29,18 +29,17 @@ function segment(parent, top, bottom, length, mat, y = -length / 2) {
   return mesh(parent, new THREE.CylinderGeometry(top, bottom, length, 8), mat, 0, y);
 }
 
-function addHair(head, profile) {
-  // Shared plausible hairstyles (short, buzz, mash, side/centre part,
-  // slicked back, wavy, curly top, ponytail, long, afro) from face.js.
-  addHairStyle(head, material, profile.hairstyle, profile.hairColor, 1);
-}
-
-// Eyes, brows, nose, mouth and ears whose shapes follow the player's
-// face type (see face.js): almond/narrow/hooded/deep/round/wide eyes,
-// straight/thin/thick/arched/angled brows, varied iris colours, and
-// nose/lip proportions with regional character.
-function addFace(head, profile, skin) {
-  addFaceFeatures(head, material, profile.face, skin, material(profile.hairColor), 1);
+// The head is the imported CC0 base model (face.js / head-model.js),
+// morphed per player: face type drives jaw, eyes, brows, nose and lips,
+// and the hairstyle picks one of the model's hair variants. A stable
+// per-player seed keeps each face's jitter identical across rebuilds.
+function addHead(head, profile) {
+  let seed = 2166136261;
+  for (const ch of profile.name ?? '') seed = Math.imul(seed ^ ch.charCodeAt(0), 16777619) >>> 0;
+  buildImportedHead(head, material, {
+    face: profile.face, skinTone: profile.skin, hairColor: profile.hairColor,
+    hairstyle: profile.hairstyle, seed, f: 1,
+  });
 }
 
 export function createPlayer(p, team) {
@@ -63,13 +62,10 @@ export function createPlayer(p, team) {
   // plain cylinder and read as a designed shirt at broadcast distance.
   segment(torso, .175, .168, .055, trim, .145).scale.z = .615;
   segment(torso, .082, .092, .05, trim, .545).scale.z = .8;
-  segment(torso, .057, .07, .095, skin, .575);
   const head = joint(torso, 0, .72);
-  // Composite head: cranium + lower face + jaw/chin + brow ridge + eye
-  // sockets + cheekbones (face.js), not a single sphere.
-  buildHead(head, material, profile.skin, 1);
-  addHair(head, profile);
-  addFace(head, profile, skin);
+  // The imported head brings its own slimmed neck, which overlaps the
+  // collar; it seats high enough that the jaw never sinks into it.
+  addHead(head, profile);
   const legs = [], arms = [];
   for (const side of [-1, 1]) {
     const hip = joint(pelvis, side * .092, 0);

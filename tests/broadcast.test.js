@@ -113,8 +113,23 @@ test('faces have eyes nose mouth and ears, and hairstyles vary widely',()=>{
   const styles=new Set(m.players.map(p=>p.profile.hairstyle));
   assert.ok(styles.size>=8,`expected >=8 hairstyles, got ${[...styles]}`);
   const model=createPlayer(m.players[9],countries[0]);
-  // skull + hair + 2 eyes (white+pupil) + 2 brows + 2 ears + nose + mouth
-  assert.ok(model.head.children.length>=11,`head children: ${model.head.children.length}`);
+  // The imported sculpted head carries eyes, nose, mouth and ears in its
+  // skin/eyes/hair meshes instead of separate box parts.
+  const meshes=[];model.head.traverse(o=>{if(o.isMesh)meshes.push(o)});
+  assert.ok(meshes.length>=3,`head meshes: ${meshes.length}`);
+  const skinTris=meshes[0].geometry.index.count/3;
+  assert.ok(skinTris>=300,`skin triangles: ${skinTris}`);
+  // A buzz-cut player wears brows only: far fewer hair triangles.
+  const hairTris=model=>{const ms=[];model.head.traverse(o=>{if(o.isMesh)ms.push(o)});return ms.at(-1).geometry.index.count/3};
+  let buzz=null,full=null;
+  for(const c of countries)for(let s=0;s<11;s++){
+    const p=getPlayerProfile(c.id,s);
+    if(p.hairstyle==='buzz'&&!buzz)buzz=p;
+    if(p.hairstyle==='short'&&!full)full=p;
+  }
+  assert.ok(buzz&&full,'expected buzz and short profiles');
+  const base={id:2,team:0,slot:1};
+  assert.ok(hairTris(createPlayer({...base,profile:buzz},countries[0]))<hairTris(createPlayer({...base,profile:full},countries[0])));
   model.g.updateMatrixWorld(true);
   model.g.traverse(o=>assert.ok(o.matrixWorld.elements.every(Number.isFinite)));
 });
@@ -148,11 +163,28 @@ test('faces carry regional character: eye, brow, iris and skin vary by country',
   assert.ok(new Set(france.map(p=>p.face.type)).size>=2);
 });
 
-test('head is a composite shape with sockets, brow ridge, jaw and chin',()=>{
+test('head is a sculpted imported mesh whose shape varies by face type',()=>{
   const m=game();
   const model=createPlayer(m.players[9],countries[0]);
-  // buildHead parts (cranium, face base, jaw, chin, brow ridge, 2 sockets,
-  // 2 cheeks) + hair + face features (eyes x3 parts, brows, ears, nose
-  // bridge/tip/base, mouth) put well over twenty meshes on the head.
-  assert.ok(model.head.children.length>=20,`head children: ${model.head.children.length}`);
+  const meshes=[];model.head.traverse(o=>{if(o.isMesh)meshes.push(o)});
+  assert.ok(meshes.length>=3,`head meshes: ${meshes.length}`);
+  const skin=meshes[0];
+  assert.ok(skin.geometry.index.count/3>=300,'skin is a detailed sculpted mesh');
+  skin.geometry.computeBoundingBox();
+  const bb=skin.geometry.boundingBox;
+  // The nose protrudes well past the eye plane at the front (+z).
+  assert.ok(bb.max.z>.12,`nose protrusion: ${bb.max.z}`);
+  // A different face type morphs the same base mesh into a different face.
+  let african=null;
+  for(const c of countries)for(let s=0;s<11&&!african;s++){
+    const p=getPlayerProfile(c.id,s);
+    if(p.face.type==='african')african=p;
+  }
+  assert.ok(african,'expected an african face profile');
+  const other=createPlayer({id:3,team:0,slot:2,profile:african},countries[0]);
+  const otherMeshes=[];other.head.traverse(o=>{if(o.isMesh)otherMeshes.push(o)});
+  const a=skin.geometry.attributes.position.array,b=otherMeshes[0].geometry.attributes.position.array;
+  assert.equal(a.length,b.length);
+  let maxDiff=0;for(let i=0;i<a.length;i++)maxDiff=Math.max(maxDiff,Math.abs(a[i]-b[i]));
+  assert.ok(maxDiff>.005,`face morph difference: ${maxDiff}`);
 });

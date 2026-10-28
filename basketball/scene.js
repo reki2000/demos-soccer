@@ -7,7 +7,7 @@ import {shadowAppearance} from './shadows.js';
 import { runningLegPose } from './leg-gait.js';
 import {jumpHeight,runningBodyPose} from './athletic-motion.js';
 import {makeSidelines} from './sideline.js';
-import {addFaceFeatures, addHairStyle, buildHead, faceFor, SQUAD_FACE_POOLS} from '../src/face.js';
+import {buildImportedHead, faceFor, SQUAD_FACE_POOLS} from '../src/face.js';
 import {BALL_RADIUS,PASS_GATHER,PASS_CATCH,SHOT_GATHER,blend as ease} from './ball-motion.js';
 
 const material = (color, roughness = .8) => new THREE.MeshStandardMaterial({color, roughness, flatShading: true});
@@ -101,13 +101,16 @@ export function createAthlete(player, team) {
     .scale.set(1.11,1,.83);
   mesh(torso,new THREE.CylinderGeometry(.088,.098,.045,8),trim,0,.585,0)
     .scale.set(1,1,.9);
-  mesh(torso, new THREE.CylinderGeometry(.065,.07,.13,8), skin, 0, .69, 0);
   const head = new THREE.Group();
   head.position.set(0, .83, 0);
   torso.add(head);
-  buildHead(head, material, face.skin, 1.16);
-  addHairStyle(head, material, HAIR_STYLES_B[(player.id * 7 + player.slot * 3) % HAIR_STYLES_B.length], hairColor, 1.16);
-  addFaceFeatures(head, material, face, skin, hair, 1.16);
+  // Imported CC0 head (shared with soccer), morphed by face type; its
+  // own slimmed neck meets the jersey neckline, jaw clear of the neck.
+  buildImportedHead(head, material, {
+    face, skinTone: face.skin, hairColor,
+    hairstyle: HAIR_STYLES_B[(player.id * 7 + player.slot * 3) % HAIR_STYLES_B.length],
+    seed: faceSeed, f: 1.16, seat: -.25,
+  });
   const legs = [], arms = [];
   for (const side of [-1, 1]) {
     const thigh = new THREE.Group();

@@ -200,16 +200,16 @@ test('basketball default camera is the ball-follow mode',()=>{
 
 test('basketball athletes have faces, varied hair and a hip-pivot torso',()=>{
   const scene=readFileSync(new URL('../basketball/scene.js',import.meta.url),'utf8');
-  assert.match(scene,/addFaceFeatures/);
-  assert.match(scene,/addHairStyle/);
+  assert.match(scene,/buildImportedHead/);
   assert.match(scene,/HAIR_STYLES_B = \[[^\]]*'sidepart'[^\]]*'afro'/);
   assert.match(scene,/torso\.position\.y = \.99/);
   assert.match(scene,/\.99\+\(guard\?/);
 });
 
-test('basketball heads use the composite buildHead shape',()=>{
+test('basketball heads use the shared imported head at 1.16 scale',()=>{
   const scene=readFileSync(new URL('../basketball/scene.js',import.meta.url),'utf8');
-  assert.match(scene,/buildHead\(head, material, face\.skin, 1\.16\)/);
+  assert.match(scene,/buildImportedHead\(head, material, \{/);
+  assert.match(scene,/f: 1\.16/);
 });
 
 test('basketball play-by-play speaks faster than the default rate',()=>{
