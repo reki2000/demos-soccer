@@ -682,9 +682,14 @@ export class Match {
   updateOwner(dt) {
     const p = this.owner;
     const dir = this.direction(p.team);
-    this.ball.x = p.x + Math.sin(p.angle) * .8;
-    this.ball.z = p.z + Math.cos(p.angle) * .8;
-    this.ball.y = .15 + Math.abs(Math.sin(p.phase)) * .06;
+    const pace = clamp(p.speed / 5, 0, 1);
+    const step = Math.sin(p.phase);
+    const lead = .33 + pace * (.18 + .42 * step * step);
+    const side = .105 * Math.cos(p.phase) * pace;
+    const forwardX = Math.sin(p.angle), forwardZ = Math.cos(p.angle);
+    this.ball.x = p.x + forwardX * lead + forwardZ * side;
+    this.ball.z = p.z + forwardZ * lead - forwardX * side;
+    this.ball.y = .15 + pace * .025 * step * step;
     if(p.slot===0&&p.action==='catch'){
       const hold=clamp(p.actionTime/.25,0,1);
       this.ball.x=p.x+Math.sin(p.angle)*.42;
