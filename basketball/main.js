@@ -151,7 +151,7 @@ $('play').addEventListener('click', () => {
 $('reset').addEventListener('click', restart);
 $('new-match').addEventListener('click', restart);
 document.addEventListener('keydown', e => {
-  if (e.code !== 'Space' || ['INPUT','TEXTAREA','SELECT','BUTTON'].includes(document.activeElement?.tagName)) return;
+  if (e.code !== 'Space' || ['INPUT','TEXTAREA','SELECT','BUTTON','SUMMARY'].includes(document.activeElement?.tagName)) return;
   e.preventDefault();
   if (match.ended) restart(); else setPlaying(!playing);
 });
