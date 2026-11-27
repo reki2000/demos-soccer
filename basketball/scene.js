@@ -176,7 +176,7 @@ export function createAthlete(player, team) {
       transparent:true,side:THREE.DoubleSide,depthWrite:false}),0,.36,-.17);
   number.rotation.y=Math.PI;
   group.scale.setScalar(player.height / 1.99);
-  return {group, legs, arms, torso, player};
+  return {group, legs, arms, torso, head, playerId: player.id};
 }
 
 
@@ -395,7 +395,7 @@ export class ArenaScene {
   }
   update(dt, gameDt = dt) {
     for (const model of this.models) {
-      const p = model.player;
+      const p = this.match.players[model.playerId];
       const motion=defenseAnimationState(this.match,p,guardPose(this.match,p));
       const guard=motion.guard;
       const sprinting=!!guard;
@@ -418,6 +418,13 @@ export class ArenaScene {
         const turn=Math.atan2(Math.sin(facing-model.group.rotation.y),Math.cos(facing-model.group.rotation.y));
         model.group.rotation.y+=turn*(1-Math.exp(-dt*(guard?5.5:6)));
       }
+      const dx=this.match.ball.x-p.x, dz=this.match.ball.z-p.z;
+      const gap=Math.hypot(dx,dz);
+      const bearing=Math.atan2(dx,dz)-model.group.rotation.y;
+      const gaze=1-Math.exp(-dt*9);
+      model.head.rotation.y+=(.70*Math.sin(bearing)*Math.min(gap,1)-model.head.rotation.y)*gaze;
+      const pitch=-.65*Math.atan2(this.match.ball.y-p.height,Math.max(gap,1.7));
+      model.head.rotation.x+=(pitch-model.head.rotation.x)*gaze;
       const running=Math.min(1,p.speed/3.5);
       const wave=Math.sin(p.phase)*.67*running;
       const crouch=guard?.crouch ?? 0;

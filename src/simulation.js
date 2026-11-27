@@ -245,6 +245,13 @@ export class Match {
       ? this.players[this.lastTouchPlayer] : this.players[team * 11 + 9];
     const friends = this.players.filter(p => p.team === team && p !== scorer && p.slot !== 0)
       .sort((a, b) => distance(a, scorer) - distance(b, scorer)).slice(0, 3).map(p => p.id);
+    const flight = this.flight;
+    const velocity = {
+      vx: this.loose?.vx ?? flight?.vx ?? (flight ? (flight.tx-flight.x)/flight.duration : this.direction(team)*6),
+      vz: this.loose?.vz ?? flight?.vz ?? (flight ? (flight.tz-flight.z)/flight.duration : 0),
+      vy: this.loose?.vy ?? (flight?.header ? flight.vy-9.8*flight.elapsed :
+        flight ? (.15-(flight.startY??.15)+4*(flight.peak??1.3)*(1-2*flight.progress))/flight.duration : 0),
+    };
     this.stopForRestart('kickoff', restartingTeam, 0);
     const laneSide = scorer.z >= 0 ? 1 : -1;
     // One fixed destination: the corner arc on the scorer's side. The old
@@ -252,7 +259,7 @@ export class Match {
     // "target" kept escaping sideways and scorers drifted diagonally
     // toward the touchline instead of running a celebration line.
     const target = { x: this.direction(team) * 46.5, z: laneSide * 29 };
-    this.celebration = { team, restartingTeam, scorer: scorer.id, friends, elapsed: 0, phase: 'celebrate', laneSide, target };
+    this.celebration = { team, restartingTeam, scorer: scorer.id, friends, elapsed: 0, phase: 'celebrate', laneSide, target, velocity };
     scorer.action = 'celebrate';
   }
 
@@ -276,6 +283,27 @@ export class Match {
     c.elapsed += dt;
     const scorer = this.players[c.scorer];
     if (c.phase === 'celebrate') {
+      const v = c.velocity;
+      if (v) {
+        const b = this.ball, dir = this.direction(c.team);
+        b.y += v.vy*dt - 4.9*dt*dt;
+        v.vy -= 9.8*dt;
+        if (b.y < .15) {
+          b.y = .15;
+          v.vy = v.vy < -.8 ? -v.vy*.28 : 0;
+        }
+        b.z = clamp(b.z+v.vz*dt,-3.55,3.55);
+        b.x += v.vx*dt;
+        const back = 52.5+2.4-.65*clamp(b.y/2.44,0,1)-.11;
+        if (dir*b.x >= back) {
+          b.x = dir*back;
+          v.vx = -dir*Math.abs(v.vx)*.10;
+          v.vz *= .3;
+        }
+        const drag = Math.exp(-dt*(b.y<=.16 ? 4.5 : 1.3));
+        v.vx *= drag;
+        v.vz *= drag;
+      }
       const arrived = this.walkTo(scorer, c.target ?? { x: this.direction(c.team) * 46.5, z: c.laneSide * 29 }, 2.6, dt);
       if (arrived) { scorer.speed = 0; scorer.running = 0; }
       scorer.action = 'celebrate';

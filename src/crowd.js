@@ -38,6 +38,7 @@ export function createCrowd(teams) {
   const hairstyles = [0x252822, 0x614430, 0xa78653, 0x898d86];
   const waving = [];
   let scarfCount = 0;
+  let staticArm = count * 2;
   for (let i = 0; i < count; i++) {
     const p = people[i];
     const scale = .8 + random() * .36;
@@ -76,7 +77,9 @@ export function createCrowd(teams) {
     }
     const cheer = random() < .17;
     for (let side = -1; side <= 1; side += 2) {
-      const index = i * 2 + (side === 1 ? 1 : 0);
+      // Pack moving arms at the start so each refresh uploads one small range.
+      const animated = cheer && i % 4 === 0;
+      const index = animated ? waving.length : --staticArm;
       const raised = cheer ? side * (1.7 + random() * .6) : side * .22;
       const pose = {
         index, x: p.x + Math.cos(p.facing) * side * .2 * scale,
@@ -85,16 +88,17 @@ export function createCrowd(teams) {
       };
       setArm(arms, object, pose, raised);
       arms.setColorAt(index, color.set(shirt));
-      if (cheer && i % 4 === 0) waving.push(pose);
+      if (animated) waving.push(pose);
     }
   }
   scarves.count = scarfCount;
   return { group, arms, waving, object, elapsed: 0 };
 }
 
+const armOffset = new THREE.Vector3();
 function setArm(arms, object, pose, angle) {
   object.rotation.set(0, pose.facing, angle);
-  const offset = new THREE.Vector3(0, -.2 * pose.scale, 0).applyEuler(object.rotation);
+  const offset = armOffset.set(0, -.2 * pose.scale, 0).applyEuler(object.rotation);
   object.position.set(pose.x + offset.x, pose.y + offset.y, pose.z + offset.z);
   object.scale.setScalar(pose.scale);
   object.updateMatrix();
@@ -112,5 +116,7 @@ export function animateCrowd(crowd, dt) {
   for (const pose of crowd.waving) {
     setArm(crowd.arms, crowd.object, pose, pose.raised + Math.sin(crowd.elapsed * 2 + pose.phase) * .15);
   }
+  crowd.arms.instanceMatrix.clearUpdateRanges();
+  crowd.arms.instanceMatrix.addUpdateRange(0, crowd.waving.length * 16);
   crowd.arms.instanceMatrix.needsUpdate = true;
 }

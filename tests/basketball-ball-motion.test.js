@@ -198,3 +198,46 @@ test('a dribble accelerates into floor contact and immediately rebounds',()=>{
   assert.ok(lateDrop>earlyDrop*3);
   assert.ok(Math.abs(height(.55)-height(.50)-lateDrop)<1e-9);
 });
+
+test('misses meet the rim and the rebound starts at that same point',()=>{
+  const m=new BasketballMatch(()=>{},()=>.95);
+  const hoop=m.basket(m.owner.team);
+  m.shoot();
+  const shot=m.flight;
+  m.updateFlight(shot.duration);
+  assert.equal(m.flight.kind,'rebound');
+  assert.ok(Math.abs(Math.hypot(shot.end.x-hoop.x,shot.end.z)-.234)<1e-8);
+  assert.deepEqual(m.ball,m.flight.start);
+  assert.ok(shot.end.y>3.05);
+});
+
+test('a released shot can score after either clock expires, but gathering is too late',()=>{
+  for (const clock of ['clock','shotClock']) {
+    const m=new BasketballMatch(()=>{},()=>0);
+    m.quarter=4;
+    m.shoot();
+    m[clock]=SHOT_GATHER+.015;
+    for(let i=0;i<60 && !m.score[0];i++)m.update(.06);
+    assert.ok(m.score[0]>0,clock);
+    if(clock==='clock')assert.ok(m.ended);
+
+    const late=new BasketballMatch(()=>{},()=>0);
+    late.quarter=4;
+    late.shoot();
+    late[clock]=.05;
+    late.update(.06);
+    assert.equal(late.score[0],0);
+    assert.equal(late.flight,null);
+  }
+});
+
+test('a basket at the quarter horn leaves the next quarter its own inbound',()=>{
+  const m=new BasketballMatch(()=>{},()=>0);
+  m.shoot();
+  m.clock=SHOT_GATHER+.01;
+  for(let i=0;i<60 && m.quarter===1;i++)m.update(.06);
+  assert.ok(m.score[0]>0);
+  assert.equal(m.quarter,2);
+  assert.equal(m.scoredInbound,null);
+  assert.ok(m.ballReturn);
+});

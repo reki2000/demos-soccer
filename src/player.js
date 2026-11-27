@@ -115,7 +115,7 @@ export function createPlayer(p, team) {
   return { g, pelvis, torso, head, legs, arms, heightScale, profile };
 }
 
-export function posePlayer(model, p) {
+export function posePlayer(model, p, ball) {
   const { g, pelvis, torso, head, legs, arms } = model;
   const speed = p.speed ?? p.running * 4;
   const gait = gaitPose(p.phase, speed, model.heightScale);
@@ -155,6 +155,15 @@ export function posePlayer(model, p) {
   torso.rotation.z -= kick * .10;
   head.rotation.x = -torso.rotation.x * .65 + header * .25;
   head.rotation.y = -torso.rotation.y * .5;
+  if (ball && !p.fallAmount && p.action !== 'celebrate' && p.action !== 'highfive') {
+    const dx = ball.x-p.x, dz = ball.z-p.z;
+    const distance = Math.hypot(dx,dz);
+    // A player can glance across a shoulder. Targets directly behind the
+    // back fade out so crossing that seam cannot snap the head side to side.
+    const bearing = Math.atan2(dx,dz)-p.angle;
+    head.rotation.y += .65*Math.sin(bearing)*Math.min(1,distance);
+    head.rotation.x -= .38*Math.atan2(ball.y-1.65,Math.max(2,distance));
+  }
   for (let i = 0; i < 2; i++) {
     const foot = gait.feet[i];
     let footZ = foot.z * (p.strideDirection ?? 1);

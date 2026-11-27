@@ -87,3 +87,16 @@ summary:focus-visible { outline: 2px solid currentColor; outline-offset: -3px; }
   #viewport .overlay-camera.arena-controls { top: 50px; }
   #viewport .score-team { padding-inline: 6px; gap: 4px; }
 }
+.overlay-option {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  font-size: 12px;
+  cursor: pointer;
+}
+#viewport:has(#player-overlays:not(:checked)) :is(.player-card, #minimap) { display: none; }
+@media (pointer: coarse) {
+  #viewport .arena-controls button, #viewport .arena-controls summary,
+  .playback button, .compact-panel > summary { min-height: 36px; }
+}
