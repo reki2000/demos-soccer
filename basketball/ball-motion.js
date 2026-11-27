@@ -21,10 +21,12 @@ export function localToWorld(player,x,y,z) {
 }
 export function dribblePoint(player, hand, phase) {
   const u=((phase%1)+1)%1;
-  const vertical=(1+Math.cos(u*2*Math.PI))/2;
+  // Gravity accelerates the descent and the floor reverses the velocity.
+  const drop = 1 - Math.abs(2 * u - 1);
+  const vertical = 1 - drop * drop;
   // Both hands bring the ball towards the middle at the floor bounce.
   // Crossing hands at the floor therefore never causes a sideways teleport.
-  return localToWorld(player,hand*.43*vertical,.125+1.035*vertical,.32);
+  return localToWorld(player,hand*.43*vertical*vertical,.125+1.035*vertical,.32);
 }
 export function releasePoint(player,kind) {
   return kind==='shot'
@@ -36,7 +38,8 @@ export function receivePoint(player,hand) {
 }
 export function arcPoint(from,to,t,height) {
   const p=mixPoint(from,to,t);
-  p.y+=Math.sin(Math.PI*clamp(t,0,1))*height;
+  const u=clamp(t,0,1);
+  p.y+=4*u*(1-u)*height;
   return p;
 }
 export function controllingHand(match, player) {

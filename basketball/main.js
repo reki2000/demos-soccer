@@ -305,7 +305,7 @@ function animate(now) {
     if (match.ended) setPlaying(false);
   }
   if(playing)arenaAudio.update(dt,match,'basketball');
-  scene?.update(dt);
+  scene?.update(dt, playing && !match.ended ? dt * speed * 1.3 : 0);
   statsElapsed += dt;
   if (statsElapsed >= .1) {
     statsElapsed = 0;

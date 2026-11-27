@@ -189,3 +189,12 @@ test('passes travel faster than the old flight timing without shortening gather 
     assert.ok(game.flight.duration<PASS_GATHER+(.38+receiverDistance/10)+PASS_CATCH+1.2);
   }
 });
+
+test('a dribble accelerates into floor contact and immediately rebounds',()=>{
+  const player={x:0,z:0,heading:0};
+  const height=t=>dribblePoint(player,1,t).y;
+  const earlyDrop=height(.05)-height(.10);
+  const lateDrop=height(.45)-height(.50);
+  assert.ok(lateDrop>earlyDrop*3);
+  assert.ok(Math.abs(height(.55)-height(.50)-lateDrop)<1e-9);
+});

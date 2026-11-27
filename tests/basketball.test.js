@@ -333,3 +333,13 @@ test('squad names carry a Japanese annotation alongside the Roman name', () => {
     }
   }
 });
+
+test('corner threes use the straight segment beside the basket',()=>{
+  for(const [z,points] of [[6.56,2],[6.64,3],[-6.65,3]]){
+    const game=new BasketballMatch(()=>{},()=>.7);
+    game.owner.x=game.basket(game.owner.team).x;
+    game.owner.z=z;
+    game.shoot();
+    assert.equal(game.flight.points,points);
+  }
+});

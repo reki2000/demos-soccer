@@ -229,7 +229,8 @@ export class BasketballMatch {
     const from = this.owner;
     const hoop = this.basket(from.team);
     const distance = dist(from, hoop);
-    const points=distance>=6.75?3:2;
+    const behindArc=(from.x-hoop.x)*this.direction(from.team)<0 && distance>COURT.threeRadius;
+    const points=behindArc || Math.abs(from.z)>COURT.cornerZ ? 3 : 2;
     const defenderDistance=dist(from,this.nearestDefender(from));
     const isDunk=points===2&&distance<2.4&&Math.abs(from.z)<1.65&&
       (from.height>=1.95||defenderDistance>2)&&this.random()<.65;
