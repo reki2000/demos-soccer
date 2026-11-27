@@ -1,5 +1,7 @@
+import {createArenaCrowd} from './stands.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import {createBasketball, createHoopNet} from './equipment.js';
 import { COURT } from './simulation.js';
 import { guardPose } from './guard-pose.js';
 import {defenseAnimationState} from './defensive-motion.js';
@@ -47,18 +49,18 @@ function woodTexture() {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   let seed = 1249;
   const rand = () => {seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296};
-  for (let y = 0; y < 512; y += 31) {
-    for (let x = 0; x < 1024; x += 155) {
-      const left = x + (Math.floor(y / 31) % 2) * 75;
+  for (let y = 0; y < 512; y += 5) {
+    for (let x = -75; x < 1024; x += 75) {
+      const left = x + (Math.floor(y / 5) % 3) * 25;
       ctx.fillStyle = 'rgba(255,235,179,' + (0.025 + rand() * .08) + ')';
-      ctx.fillRect(left, y, 153, 30);
+      ctx.fillRect(left, y, 75, 5);
       ctx.strokeStyle = 'rgba(69,45,29,.18)';
-      ctx.strokeRect(left + .5, y + .5, 153, 30);
+      ctx.strokeRect(left + .5, y + .5, 75, 5);
       ctx.strokeStyle = 'rgba(93,65,35,.07)';
-      for (let s = 0; s < 4; s++) {
+      for (let s = 0; s < 2; s++) {
         ctx.beginPath();
-        ctx.moveTo(left + 6, y + 4 + s * 6);
-        ctx.lineTo(left + 148, y + 3 + s * 6 + rand() * 3);
+        ctx.moveTo(left + 6, y + 1 + s * 2);
+        ctx.lineTo(left + 72, y + 1 + s * 2 + rand());
         ctx.stroke();
       }
     }
@@ -85,14 +87,17 @@ export function createAthlete(player, team) {
   const face = faceFor(SQUAD_FACE_POOLS[team.id] ?? SQUAD_FACE_POOLS.tokyo, faceSeed);
   const skin = material(face.skin);
   const hairColor = hairColorsB[(player.id * 5 + 2) % hairColorsB.length];
-  const hair = material(hairColor);
+  skin.flatShading = main.flatShading = false;
   const shoe = material(player.slot % 2 ? 0xf3f0e6 : 0x27394b);
   group.add(torso);
   // A pelvis mass bridges waist and thighs at the hip line.
   mesh(group, new THREE.SphereGeometry(.16, 10, 8), trim, 0, .985, 0).scale.set(1.15, .62, .85);
   // Slim athletic torso: narrower waist, still wider left/right than
   // front/back, like a jersey on a lean frame. (Y values are hip-relative.)
-  mesh(torso,new THREE.CylinderGeometry(.195,.155,.54,8),main,0,.33,0)
+  mesh(torso,new THREE.LatheGeometry([
+    [.158,.06], [.167,.09], [.154,.20], [.178,.36], [.197,.48],
+    [.184,.53], [.125,.58], [.079,.60]
+  ].map(([radius,y])=>new THREE.Vector2(radius,y)),16),main,0,0,0)
     .scale.set(1.12,1,.84);
   mesh(torso,new THREE.CylinderGeometry(.168,.158,.16,8),trim,0,.02,0)
     .scale.set(1.08,1,.84);
@@ -127,18 +132,20 @@ export function createAthlete(player, team) {
     knee.position.y = -.47;
     thigh.add(knee);
     mesh(knee, new THREE.IcosahedronGeometry(.07,1), skin, 0,0,0);
-    mesh(knee, new THREE.CylinderGeometry(.056,.047,.45,7), skin, 0,-.215,0);
+    mesh(knee, new THREE.LatheGeometry([
+      [.044,-.45], [.044,-.36], [.055,-.24], [.067,-.14], [.064,-.07], [.052,0]
+    ].map(([r,y])=>new THREE.Vector2(r,y)),14), skin, 0,0,0);
     const ankle = new THREE.Group();
     ankle.position.y = -.46;
     knee.add(ankle);
-    mesh(ankle, new THREE.BoxGeometry(.13,.10,.25), shoe, 0,-.055,.07);
+    mesh(ankle, new THREE.SphereGeometry(1,16,10), shoe, 0,-.052,.066).scale.set(.067,.060,.134);
     // Light sole under the shoe.
-    mesh(ankle, new THREE.BoxGeometry(.135,.025,.255), material(0xf3f0e6), 0,-.112,.07);
+    mesh(ankle, new THREE.SphereGeometry(1,16,8), material(0xf3f0e6), 0,-.097,.07).scale.set(.069,.018,.136);
     legs.push({hip:thigh, knee, ankle});
     const arm = new THREE.Group();
     arm.position.set(side * .222,.54,0);
     torso.add(arm);
-    mesh(arm,new THREE.CylinderGeometry(.07,.06,.14,7),main,0,-.048,0);
+    mesh(arm,new THREE.SphereGeometry(.081,14,10),skin,0,-.035,0).scale.set(1,1.38,.95);
     mesh(arm,new THREE.CylinderGeometry(.054,.046,.14,7),skin,0,-.17,0);
     const elbow = new THREE.Group();
     elbow.position.y = -.245;
@@ -166,7 +173,7 @@ export function createAthlete(player, team) {
   // Number faces backward (-local Z). It no longer appears on the chest.
   const number=mesh(torso,new THREE.PlaneGeometry(.32,.32),
     new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(plate),
-      transparent:true,side:THREE.DoubleSide,depthWrite:false}),0,.36,-.152);
+      transparent:true,side:THREE.DoubleSide,depthWrite:false}),0,.36,-.17);
   number.rotation.y=Math.PI;
   group.scale.setScalar(player.height / 1.99);
   return {group, legs, arms, torso, player};
@@ -277,6 +284,7 @@ export class ArenaScene {
     }
     this.world = new THREE.Group();
     this.scene.add(this.world);
+    this.nets = [];
     this.makeCourt();
     this.makeArena();
     this.sideline=makeSidelines(this.world,THREE,this.squads);
@@ -287,10 +295,9 @@ export class ArenaScene {
     this.scene.add(this.playersGroup);
     this.models = [];
     this.makePlayers();
-    this.ball = mesh(this.scene, new THREE.SphereGeometry(.119, 16, 12), material(0xdf853e),0,1,0);
-    const seams = new THREE.Mesh(new THREE.SphereGeometry(.12, 12, 8),
-      new THREE.MeshBasicMaterial({color:0x40251b,wireframe:true,transparent:true,opacity:.55}));
-    this.ball.add(seams);
+    this.ball = createBasketball();
+    this.scene.add(this.ball);
+    this.spinAxis = new THREE.Vector3();
     this.halo = new THREE.Mesh(new THREE.RingGeometry(.36,.47,36),
       new THREE.MeshBasicMaterial({color:0xbdf7d8,side:THREE.DoubleSide,transparent:true,opacity:.8}));
     this.halo.rotation.x = -Math.PI / 2;
@@ -318,31 +325,27 @@ export class ArenaScene {
     for (const dir of [-1,1]) {
       rectangle(this.world,dir<0?-14:8.2,dir<0?-8.2:14,-2.45,2.45);
       arc(this.world,dir*8.2,0,1.8);
-      const points=[];
+      const points=[[dir*COURT.length/2,-COURT.cornerZ]];
+      const angle=Math.asin(COURT.cornerZ/COURT.threeRadius);
       for(let i=0;i<=80;i++){
-        const z=-6.75+i*13.5/80;
-        const x=dir*(COURT.basketX-Math.sqrt(Math.max(0,6.75**2-z**2)));
-        points.push([x,z]);
+        const theta=-angle+2*angle*i/80;
+        points.push([dir*(COURT.basketX-COURT.threeRadius*Math.cos(theta)),COURT.threeRadius*Math.sin(theta)]);
       }
+      points.push([dir*COURT.length/2,COURT.cornerZ]);
       trace(this.world,points);
-      trace(this.world,[[dir*COURT.basketX,-7.5],[dir*COURT.basketX,-6.75]]);
-      trace(this.world,[[dir*COURT.basketX,6.75],[dir*COURT.basketX,7.5]]);
       cuboid(this.world,[.16,3.35,.18],0x677987,[dir*14.4,1.55,0]);
-      const board = cuboid(this.world,[.14,1.05,1.8],0xf2f6f4,[dir*13.17,3.35,0]);
-      board.material.transparent=true;board.material.opacity=.68;board.material.roughness=.12;
-      const square=new THREE.Group();this.world.add(square);
-      traceBoard(square,dir*13.04);
-      const ring = mesh(this.world,new THREE.TorusGeometry(.23,.025,9,35),material(0xec6d37,.36),dir*COURT.basketX,COURT.rimHeight,0);
+      const boardX = dir * (COURT.basketX + .38);
+      cuboid(this.world,[14.4-Math.abs(boardX),.12,.15],0x667681,[(dir*14.4+boardX)/2,3.30,0]);
+      const board = cuboid(this.world,[.055,1.05,1.8],0xdceaf0,[boardX,3.425,0]);
+      board.material.transparent=true;board.material.opacity=.30;board.material.roughness=.12;
+      traceBoard(this.world,boardX-dir*.032);
+      cuboid(this.world,[.15,.065,.13],0xce5226,[dir*(COURT.basketX+.30),COURT.rimHeight,0]);
+      const ring = mesh(this.world,new THREE.TorusGeometry(.234,.01,12,48),material(0xec6d37,.36),dir*COURT.basketX,COURT.rimHeight,0);
       ring.rotation.x = -Math.PI/2;
-      for(let j=0;j<12;j++){
-        const a=j*Math.PI/6, b=(j+.5)*Math.PI/6;
-        const x=dir*COURT.basketX;
-        const segments=[[x+Math.cos(a)*.23,COURT.rimHeight,Math.sin(a)*.23],
-          [x+Math.cos(b)*.16,2.63,Math.sin(b)*.16],
-          [x+Math.cos(a)*.13,2.43,Math.sin(a)*.13]];
-        const geo=new THREE.BufferGeometry().setFromPoints(segments.map(p=>new THREE.Vector3(...p)));
-        this.world.add(new THREE.Line(geo,new THREE.LineBasicMaterial({color:0xdcebe4,transparent:true,opacity:.68})));
-      }
+      const net = createHoopNet();
+      net.position.copy(ring.position);
+      this.world.add(net);
+      this.nets.push(net);
     }
     function traceBoard(group,x) {
       const pts = [[x,3.12,-.32],[x,3.55,-.32],[x,3.55,.32],[x,3.12,.32],[x,3.12,-.32]];
@@ -361,18 +364,7 @@ export class ArenaScene {
         cuboid(this.world,[1.45,.75,30],row%2?0x233044:0x35465b,[x,.4+row*.74,0]);
       }
     }
-    const spectator = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(.23,0),material(0x8796a2),400);
-    const dummy = new THREE.Object3D();
-    for(let i=0;i<400;i++){
-      const side = i%2 ? 1 : -1, row = Math.floor(i/50)%7, seat = Math.floor(i/2)%25;
-      const color = new THREE.Color([0x8bacc1,0xc2b69a,0xbd7873,0x748b80,0x617184][(i*7+row)%5]);
-      spectator.setColorAt(i,color);
-      dummy.position.set(-15+seat*1.25,.95+row*.58,side*((side>0?11.25:9.1)+row*1.25));
-      dummy.scale.set(.72,1.4,.88);
-      dummy.updateMatrix();spectator.setMatrixAt(i,dummy.matrix);
-    }
-    spectator.castShadow=false;
-    this.world.add(spectator);
+    this.world.add(createArenaCrowd());
     for(const x of [-15.6,15.6]) {
       cuboid(this.world,[.7,7,.7],0x233044,[x,10,-16]);
       cuboid(this.world,[.7,7,.7],0x233044,[x,10,16]);
@@ -401,7 +393,7 @@ export class ArenaScene {
     this.controls.enabled=mode==='free';
     if(mode==='free'){this.controls.target.copy(this.target);this.controls.update();}
   }
-  update(dt) {
+  update(dt, gameDt = dt) {
     for (const model of this.models) {
       const p = model.player;
       const motion=defenseAnimationState(this.match,p,guardPose(this.match,p));
@@ -466,7 +458,15 @@ export class ArenaScene {
           x=target.shoulderX;z=target.shoulderZ;
           ex=target.elbowX;ez=target.elbowZ;wx=target.wristX;
         }else if(isShooting){
-          x=-2.55;z=side*.22;ex=-.20;wx=-.1;
+          // The guide hand opens away while the shooting wrist folds over.
+          const shot=this.match.flight;
+          const sinceRelease=isFreeThrow ? shotProgress*1.65 :
+            shot?.from===p.id ? shot.t*shot.duration-SHOT_GATHER : 0;
+          const snap=ease(sinceRelease/.14);
+          x=i ? -2.55-.21*snap : -2.45+.55*snap;
+          z=side*(i ? .12 : .22+.14*snap);
+          ex=i ? -.25+.21*snap : -.32;
+          wx=i ? -.12-.95*snap : -.1;
         }else if(p.action==='dribble'){
           const active=this.match.ballControl?.hand===side;
           x=active?-.65:-.18;ex=active?-.53:-.32;
@@ -508,8 +508,22 @@ export class ArenaScene {
     this.ballShadow.position.set(b.x,-.034,b.z);
     this.ballShadow.material.opacity=ballShade.opacity;
     this.ballShadow.scale.set(ballShade.radius,ballShade.radius,1);
-    this.ball.rotation.z+=dt*3;
-    this.ball.rotation.x+=dt*1.4;
+    const shot=this.match.flight, ft=this.match.freeThrows;
+    const release=shot?.stage==='air' ? shot.release : ft?.state==='flight' ? ft.start : null;
+    if(release){
+      const end=shot?.end ?? ft.end;
+      this.spinAxis.set(end.z-release.z,0,release.x-end.x).normalize();
+      const backspin=shot?.kind==='pass' ? 5 : 12;
+      this.ball.rotateOnWorldAxis(this.spinAxis,-gameDt*backspin);
+    } else if(this.match.owner && this.match.ballControl?.mode==='dribble'){
+      this.ball.rotateZ(gameDt*2*this.match.ballControl.hand);
+    }
+    for(const net of this.nets){
+      const fall=this.match.scoredInbound;
+      const t=fall && Math.abs(net.position.x-fall.from.x)<.3 ? fall.time : 0;
+      const pull=t<.65 ? Math.sin(Math.PI*t/.65)**2 : 0;
+      net.morphTargetInfluences[0]=pull;
+    }
     this.halo.visible=!!this.match.owner;
     if(this.match.owner) this.halo.position.set(this.match.owner.x,.06,this.match.owner.z);
     if(this.mode==='free') this.controls.update();

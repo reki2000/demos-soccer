@@ -1,3 +1,4 @@
+import { announcerName } from '../src/announcer-name.js';
 // Contextual, non-repeating play calls; rendering and speech use the same line.
 const CALLS={
  pass:[
@@ -10,7 +11,7 @@ const CALLS={
   'ディフェンスを揺さぶる、{team}のパスワーク。',
   'ボールを動かす{team}。チャンスをうかがいます。',
   'ワンタッチで展開、{team}のリズムが出てきました。',
-  '{receiver}の足元へ、正確なパスが通ります。',
+  '{receiver}の手元へ、正確なパスが通ります。',
  ],
  shot:[
   '{player}、思い切ってシュート！',
@@ -21,7 +22,7 @@ const CALLS={
   '迷わずシュート。軌道に注目です。',
   '{player}、ここは自分で狙ってきました。',
   'フリーになった{player}、シュート！',
-  'ステップバックからの一発！ {player}が放つ！',
+  '打った、{player}！ ボールがリングへ向かいます！',
   'ドライブからプルアップ。{player}のジャンパー！',
  ],
  feint:[
@@ -37,6 +38,9 @@ const CALLS={
   '{team}、強烈なフィニッシュを狙います！',
   'ディフェンスを突破、{player}がリングへ！',
  ],
+ clockShot:['ショットクロックは残り{seconds}秒！ {player}が放った！','時間がない、{player}がここで打つ！','残り{seconds}秒でリリース！ リングに届くか。'],
+ tie:['{player}、決めた！ これで{score}、同点です！','追いついた！ {player}の{points}点で並びました。','{team}が試合を振り出しに戻した！ {score}です。'],
+ leadChange:['逆転！ {player}の一本で{team}が前に出ます！','入った！ 今度は{team}のリードです、{score}！','{player}がひっくり返した！ スコアは{score}！'],
  score:[
   '{player}が決めた！ {team}、{points}点追加！',
   '入った！ {player}、見事なフィニッシュ！',
@@ -61,7 +65,7 @@ const CALLS={
   '決まりません。こぼれ球はどちらへ？',
   '今のシュートはノーゴール。次のプレーへ。',
   '{team}、このシュートは惜しくも外れました。',
-  'リングに嫌われた。しかし攻撃は続く！',
+  'リングに嫌われた！ 次に触るのは誰だ。',
  ],
  rebound:[
   '{player}がリバウンドを確保！',
@@ -89,7 +93,7 @@ const CALLS={
  ],
  freeThrowStart:[
   'フリースロー。{player}がラインに立ちます。',
-  '{player}、一本のフリースローです。',
+  '{player}、フリースローラインに立ちました。',
   'ここはフリースローで得点を狙います。',
   '{team}、フリースローの場面です。',
  ],
@@ -176,33 +180,53 @@ export function createBasketballCommentary(random=Math.random) {
   const previous=new Map();
   const previousAnalysis=new Map();
   const build=(type,details,match,teams,bank,seen)=>{
-    const category=type==='score'&&details.dunk?'dunkScore':type;
+    let category=type==='score'&&details.dunk?'dunkScore':type;
+    const score=details.score??match?.score;
+    const margin=score ? score[details.team]-score[1-details.team] : NaN;
+    if(type==='score' && bank===CALLS && !details.dunk){
+      if(margin===0)category='tie';
+      else if(margin>0 && margin<details.points)category='leadChange';
+    }
+    if(type==='shot' && bank===CALLS && match?.shotClock>0 && match.shotClock<=5)category='clockShot';
     const lines=bank[category];
     if(!lines)return '';
     const name=player=>{
-      if(!player||!teams[player.team])return '選手';
-      // Commentary uses the Japanese form (kanji surname / katakana) when
-      // the squad provides one, falling back to the Roman surname.
-      const ja=teams[player.team].namesJa?.[player.slot];
-      if(ja)return ja.replace(/（.*$/,'').split(/[ ・]/)[0]||'選手';
-      return teams[player.team].names[player.slot]?.split(' ').slice(-1)[0]||'選手';
+      const squad=teams[player?.team];
+      if(!squad)return '選手';
+      return announcerName(squad.namesJa?.[player.slot],squad.names?.[player.slot],
+        ['tokyo','osaka','seoul'].includes(squad.id));
     };
     const player=match?.players?.[details.player]??null;
     const target=match?.players?.[details.target]??null;
     const team=teams[details.team]?.name??'攻撃側';
-    const last=seen.get(category)??-1;
-    const options=lines.map((_,i)=>i).filter(i=>i!==last);
-    const n=options[Math.min(options.length-1,Math.floor(random()*options.length))];
-    seen.set(category,n);
+    let history=seen.get(category)??[];
+    let options=lines.map((_,i)=>i).filter(i=>!history.includes(i));
+    if(!options.length){
+      const last=history.at(-1);
+      options=lines.map((_,i)=>i).filter(i=>lines.length===1 || i!==last);
+      history=[];
+    }
+    const n=options[Math.floor(random()*options.length)];
+    seen.set(category,[...history,n]);
     const values={
       player:name(player),receiver:name(target),team,
       score:match?.score?.join('対')??'0対0',
       points:details.points??2,
+      seconds:Math.ceil(match?.shotClock??0),
       height:player?Math.round(player.height*100):'',
       position:player?POSITIONS[player.slot]??'':'',
       number:player?.number??'',
     };
-    return lines[n].replace(/\{(\w+)\}/g,(_,key)=>String(values[key]??''));
+    let line=lines[n].replace(/\{(\w+)\}/g,(_,key)=>String(values[key]??''));
+    if(bank===ANALYSIS && type==='score' && match?.quarter>=4 && match.clock<=60 && Math.abs(margin)<=3){
+      const seconds=Math.ceil(match.clock);
+      line=margin===0 ? `残り${seconds}秒、同点です。次の一本と、相手に何秒残すかが勝負になります。` :
+        `残り${seconds}秒で${Math.abs(margin)}点差。まだ一度の攻撃で追いつける差です。`;
+    } else if(bank===ANALYSIS && type==='foul' && details.teamFouls){
+      line=`このクォーター、${team}のチームファウルは${details.teamFouls}つ目。`+
+        (details.teamFouls>=5?'ボーナスに入っています。次の守りも接触には注意です。':'第5ファウルからはフリースローを与えます。');
+    }
+    return line;
   };
   function describe(type,details={},match=null,teams=[]) {
     return build(type,details,match,teams,CALLS,previous);

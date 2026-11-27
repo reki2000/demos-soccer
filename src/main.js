@@ -42,7 +42,9 @@ const commentary=new Commentary(caption=>{
   $('commentary').classList.toggle('speaking',!!caption);
   if(caption&&arenaAudio.commentaryEnabled&&playing&&!highlights?.active){
     const now=Date.now();
-    if(now-lastCaptionSpeech>2300 && arenaAudio.speak(caption.text,false,caption.role??'play'))lastCaptionSpeech=now;
+    const decisive=['goal','equalizer','goalLead','fulltime'].includes(caption.category);
+    if((decisive || now-lastCaptionSpeech>2300) &&
+      arenaAudio.speak(caption.text,decisive,caption.role,caption.category))lastCaptionSpeech=now;
   }
 });
 new ResizeObserver(entries=>{const height=entries[0].contentRect.height;$('viewport').style.setProperty('--caption-offset',Math.ceil(height+40)+'px')}).observe($('commentary'));
@@ -54,7 +56,7 @@ function setPlaying(value){playing=value;arenaAudio.setPlaying(value);$('play').
 function restart(){arenaAudio.stopSpeech();highlights.reset();$('replay-badge').hidden=true;match.reset();displayMatch=match;assignProfiles(match,teams);setPlaying(true);commentary.reset(match,teams);toast('KICK OFF',`${teams[0].name} vs ${teams[1].name}`);updateStats()}
 $('commentary-toggle').addEventListener('click',()=>{commentary.setEnabled(!commentary.enabled);$('commentary-toggle').setAttribute('aria-pressed',String(commentary.enabled));$('commentary-toggle').title=commentary.enabled?'実況字幕をオフ':'実況字幕をオン';$('commentary').hidden=!commentary.enabled;$('viewport').classList.toggle('captions-on',commentary.enabled)});
 $('play').addEventListener('click',()=>{if(match.ended&&!highlights.active)restart();else setPlaying(!playing)});$('reset').addEventListener('click',restart);$('new-match').addEventListener('click',restart);
-document.addEventListener('keydown',e=>{if(e.code==='Space'&&!['INPUT','SELECT','BUTTON','TEXTAREA'].includes(document.activeElement.tagName)){e.preventDefault();if(match.ended&&!highlights.active)restart();else setPlaying(!playing)}});
+document.addEventListener('keydown',e=>{if(e.code==='Space'&&!['INPUT','SELECT','BUTTON','TEXTAREA','SUMMARY'].includes(document.activeElement.tagName)){e.preventDefault();if(match.ended&&!highlights.active)restart();else setPlaying(!playing)}});
 document.querySelectorAll('[data-speed]').forEach(b=>b.addEventListener('click',()=>{speed=Number(b.dataset.speed);arenaAudio.setSpeed(speed);document.querySelectorAll('[data-speed]').forEach(btn=>btn.classList.toggle('active',btn===b))}));
 const venues={tokyo:['TOKYO NATIONAL','TOKYO, JAPAN','68,000 SEATS · DAYLIGHT','☀'],london:['LONDON PARK','LONDON, ENGLAND','90,000 SEATS · OVERCAST','☁'],rio:['RIO ARENA','RIO DE JANEIRO, BRAZIL','78,000 SEATS · SUNSHINE','☀']};
 $('stadium-select').addEventListener('change',e=>{const id=e.target.value,v=venues[id];scene?.setStadium(id);$('venue-label').textContent=v[0];$('stadium-city').textContent=v[1];$('stadium-info').textContent=v[2];updateWeatherLabel();$('stadium-preview').style.background=id==='london'?'linear-gradient(115deg,#64414b,#29343a)':id==='rio'?'linear-gradient(115deg,#727745,#304b38)':''});

@@ -46,8 +46,9 @@ export function gaitPose(phase, speed, scale = 1) {
       // Heel folds behind the knee, swings through, then retracts before touchdown.
       z = u * u * u * -reach + 3 * u * u * t * (-reach - .1 * moving)
         + 3 * u * t * t * (reach + .18 * moving) + t * t * t * reach;
-      y = .095 + Math.pow(Math.sin(t * Math.PI), .9) * (.12 + .25 * sprint) * moving;
-      pitch = (.35 * Math.sin(t * Math.PI) - .12 * t) * moving;
+      pitch = (.52 * (1 - smooth(t)) - .12 * smooth(t) + .32 * Math.sin(t * Math.PI)) * moving;
+      const clearance = Math.sin(t * Math.PI) * (.12 + .25 * sprint) * moving;
+      y = .095 + clearance + Math.max(0, Math.sin(pitch)) * .19 + Math.max(0, -Math.sin(pitch)) * .065;
     }
     return { z, y, pitch, stance, progress: t };
   });

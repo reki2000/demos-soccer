@@ -151,7 +151,7 @@ $('play').addEventListener('click', () => {
 $('reset').addEventListener('click', restart);
 $('new-match').addEventListener('click', restart);
 document.addEventListener('keydown', e => {
-  if (e.code !== 'Space' || ['INPUT','TEXTAREA','SELECT','BUTTON'].includes(document.activeElement?.tagName)) return;
+  if (e.code !== 'Space' || ['INPUT','TEXTAREA','SELECT','BUTTON','SUMMARY'].includes(document.activeElement?.tagName)) return;
   e.preventDefault();
   if (match.ended) restart(); else setPlaying(!playing);
 });
@@ -305,7 +305,7 @@ function animate(now) {
     if (match.ended) setPlaying(false);
   }
   if(playing)arenaAudio.update(dt,match,'basketball');
-  scene?.update(dt);
+  scene?.update(dt, playing && !match.ended ? dt * speed * 1.3 : 0);
   statsElapsed += dt;
   if (statsElapsed >= .1) {
     statsElapsed = 0;

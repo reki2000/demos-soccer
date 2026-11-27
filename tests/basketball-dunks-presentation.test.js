@@ -173,3 +173,35 @@ test('basketball analyst adds meaning and player background',()=>{
   const line=describe.analysis('score',{player:0,team:0,points:2},match,teams);
   assert.match(line,/センター/);assert.match(line,/205センチ/);assert.doesNotMatch(line,/[{}]/);
 });
+
+test('arena calls use local surnames, score swings and the live shot clock',()=>{
+  const describe=createBasketballCommentary(()=>0);
+  for(const [team,surname] of [[0,'高村'],[1,'井上'],[2,'パク'],[3,'ヘンダーソン']]){
+    const match={players:[{team,slot:0}],score:[0,0],shotClock:3.1};
+    const fresh=createBasketballCommentary(()=>0);
+    const line=fresh('shot',{team,player:0},match,SQUADS);
+    assert.ok(line.includes('4秒') && line.includes(surname),line);
+  }
+  const match={players:[{team:0,slot:0}],score:[69,68],clock:18,quarter:4};
+  assert.match(describe('score',{team:0,player:0,points:3},match,SQUADS),/逆転/);
+  assert.match(describe.analysis('score',{team:0,player:0,points:3},match,SQUADS),/残り18秒で1点差/);
+  for(let i=0;i<3;i++)assert.ok(describe.analysis('freeThrowMade',{player:0,team:0},match,SQUADS));
+});
+
+test('decisive calls lift the voice while a free throw slows the delivery',()=>{
+  const heard=[];
+  const env={SpeechSynthesisUtterance:class {},speechSynthesis:{
+    getVoices:()=>[],speak:u=>heard.push(u),cancel(){},resume(){},
+  }};
+  const audio=new ArenaAudio(env);
+  audio.setCommentary(true);
+  for(const moment of ['pass','goalLead','score','freeThrowAttempt']){
+    assert.ok(audio.speak('実況',true,'play',moment));
+  }
+  const [neutral,soccer,basket,quiet]=heard.slice(-4);
+  for(const call of [soccer,basket]){
+    assert.ok(call.pitch>neutral.pitch);
+    assert.ok(call.rate>neutral.rate);
+  }
+  assert.ok(quiet.pitch<neutral.pitch && quiet.rate<neutral.rate);
+});

@@ -1,0 +1,89 @@
+/* Shared viewing layout. The sport styles retain their own colours and type. */
+body > header, body > .topbar {
+  height: 54px;
+  padding-inline: max(14px, calc((100vw - 1320px) / 2));
+  gap: 10px;
+}
+body > main {
+  width: 100%;
+  max-width: 1352px;
+  padding: 12px 16px 0;
+}
+header .sport-switch a { padding: 8px 10px; }
+.workspace {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.workspace > .match-panel { grid-column: 1 / -1; }
+.workspace > aside { display: block; padding: 0; background: none; border: 0; }
+.panel-bar { height: 35px; padding-inline: 12px; }
+#viewport:not(:fullscreen) { height: clamp(330px, 63vh, 700px); min-height: 0; }
+.playback { height: auto; padding: 5px 12px; gap: 8px; }
+#viewport .scoreboard { top: 9px; left: 9px; transform: none; }
+.viewport .scoreboard { height: 41px; }
+.viewport .score-team { font-size: 15px; gap: 4px; padding-inline: 7px; }
+.viewport .score { font-size: 19px; gap: 5px; padding-inline: 8px; }
+.viewport .clock { min-width: 48px; padding: 2px 5px; line-height: 1; }
+.viewport .clock strong { font-size: 13px; }
+
+summary { cursor: pointer; }
+summary:focus-visible { outline: 2px solid currentColor; outline-offset: -3px; }
+#viewport .overlay-camera.arena-controls {
+  inset: 9px 9px auto auto;
+  width: auto;
+  padding: 0;
+}
+#viewport .arena-controls[open] { width: min(212px, calc(100% - 18px)); padding: 0 8px 8px; }
+#viewport .arena-controls summary { padding: 8px; font-size: 12px; font-weight: 650; }
+#viewport .arena-controls[open] summary { margin-inline: -8px; }
+#viewport .arena-controls button { min-height: 30px; }
+#viewport .arena-controls .sound-toggle, #viewport .arena-controls [data-camera] { font-size: 11px; }
+#viewport:not(:fullscreen) .inview-fullscreen { display: none; }
+#viewport .arena-controls .audio-status {
+  position: static;
+  max-width: none;
+  margin-top: 6px;
+  padding: 0;
+  background: transparent;
+  font-size: 10px;
+}
+.compact-panel {
+  padding: 0;
+  border: 1px solid #74877c55;
+  border-radius: 5px;
+  background: #ffffff06;
+}
+.compact-panel > summary { padding: 10px 13px; font-size: 13px; font-weight: 650; }
+.compact-panel > .stat-grid, .compact-panel > .setup-fields { padding: 2px 13px 13px; }
+.stats .stat-grid { gap: 12px; }
+.setup-fields { display: grid; gap: 10px; }
+.setup-fields .settings-card, .setup-fields .setting-section {
+  padding: 8px 0 0;
+  margin: 0;
+  border: 0;
+  border-top: 1px solid #74877c44;
+  background: none;
+}
+.setup-fields .settings-card label { margin: 5px 0; }
+.setup-fields .rule-note { padding-top: 8px; margin-top: 10px; font-size: 12px; }
+.setup-fields .section-label { margin-bottom: 6px; }
+.setup-fields .stadium-preview { min-height: 0; height: 48px; }
+.setup-fields .primary-button, .setup-fields .new-match { margin-top: 8px; padding: 9px 12px; }
+@media (max-width: 680px) {
+  body > main { padding: 6px 6px 0; }
+  body > header, body > .topbar { height: 46px; padding-inline: 9px; }
+  header .brand { font-size: 16px; }
+  .workspace { grid-template-columns: minmax(0, 1fr); gap: 5px; }
+  #viewport:not(:fullscreen) { height: clamp(320px, 58svh, 480px); }
+  #viewport .scoreboard { left: 5px; top: 6px; }
+  #viewport .overlay-camera.arena-controls { right: 5px; top: 6px; }
+  #viewport #minimap { width: 84px; height: auto; right: 6px; }
+  #viewport .player-card { max-width: 58%; min-width: 0; padding: 5px 7px; }
+  .playback { padding: 4px 8px; }
+  .compact-panel > summary { padding-block: 9px; }
+}
+
+@media (max-width: 420px) {
+  #viewport .overlay-camera.arena-controls { top: 50px; }
+  #viewport .score-team { padding-inline: 6px; gap: 4px; }
+}

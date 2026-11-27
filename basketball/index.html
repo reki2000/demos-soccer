@@ -7,12 +7,12 @@
   <meta name="description" content="COURTSIDE — 自動進行する5対5の3Dバスケットボール・シミュレーション。">
   <title>COURTSIDE — Basketball, in motion.</title>
   <link rel="stylesheet" href="./style.css">
-</head>
+<link rel="stylesheet" href="../src/compact.css"></head>
 <body>
 <header class="topbar">
   <a class="brand" href="./"><span class="brand-icon">↗</span> COURTSIDE<span class="brand-dot">®</span></a>
   <nav class="sport-switch" aria-label="スポーツを切り替え"><a href="../">SOCCER</a><a class="active" href="./" aria-current="page">BASKETBALL</a></nav>
-  <span class="sibling">3D SPORTS SIMULATOR</span>
+
 </header>
 <main>
   <div class="workspace">
@@ -27,29 +27,28 @@
           <div class="score-team"><b id="away-code">OSK</b><span class="team-marker away-marker"></span></div>
           <div class="clock"><span id="period">Q1</span><strong id="match-time">10:00</strong><small>SHOT <b id="shot-clock">24</b></small></div>
         </div>
-        <div class="broadcast-mark">CS<span>SPORTS</span><small>LIVE · WEBGL</small></div>
+
         <div id="event-toast" class="event-toast" role="status" aria-live="polite"><strong id="event-title"></strong><span id="event-big-score" hidden></span><span id="event-subtitle"></span></div>
         <div id="player-card" class="player-card" hidden><div class="mini-label">ON THE BALL</div><div class="player-identity"><span id="player-number">7</span><div><strong id="player-name"></strong><small id="player-team"></small></div></div></div>
         <canvas id="minimap" width="232" height="132" aria-label="コート上の選手位置"></canvas>
-        <div class="overlay-camera arena-controls" aria-label="カメラと音声">
-  <div class="overlay-camera-title"><span>CAMERA / SOUND</span><button id="fullscreen-inview" class="inview-fullscreen" aria-label="全画面表示を終了" title="拡大・縮小">縮小 ⤡</button></div>
+        <details class="overlay-camera arena-controls"><summary>映像・音声</summary>
+  <div class="overlay-camera-title"><span id="camera-label">BALL FOLLOW</span><button id="fullscreen-inview" class="inview-fullscreen" aria-label="全画面表示を終了" title="拡大・縮小">縮小 ⤡</button></div>
   <div class="camera-options"><button data-camera="broadcast" aria-label="中継カメラ">中継</button><button data-camera="follow" class="active" aria-label="追従カメラ">追従</button><button data-camera="tactical" aria-label="俯瞰カメラ">俯瞰</button><button data-camera="free" aria-label="自由カメラ">自由</button></div>
   <div class="arena-audio-controls"><button id="audio-enable-inview" class="sound-toggle inview-audio" aria-label="音声を開始する">♪ 音声開始</button><button id="crowd-toggle" class="sound-toggle" aria-label="観客音と効果音を切り替える" aria-pressed="false">効果音 OFF</button><button id="voice-toggle" class="sound-toggle" aria-label="実況読み上げを切り替える" aria-pressed="false">実況 OFF</button></div>
-  <p id="camera-help" hidden>ボールの動きに合わせてカメラが追従。</p>
-</div><div class="camera-mark"><i></i><span id="camera-label">BALL FOLLOW</span></div>
+  <p id="camera-help" hidden>ボールの動きに合わせてカメラが追従。</p><div id="audio-status" class="audio-status" role="status" aria-live="polite">音声はオフです。</div></details>
         <div class="commentary" id="commentary">ティップオフを待っています。</div>
-        <div id="audio-status" class="audio-status" role="status" aria-live="polite">音声はOFFです。上の「音声を開始」を押してください。</div>
+
         <div id="loading" class="loading">アリーナを準備しています…</div>
       </div>
       <div class="playback">
         <button id="play" class="play-button" aria-label="一時停止" title="一時停止（Space）">Ⅱ</button>
         <button id="reset" class="flat-button reset-button" aria-label="試合をリセット" title="試合をリセット">↺</button>
-        <span class="control-label">MATCH SPEED</span>
+        <span class="control-label">再生速度</span>
         <div class="segmented" id="speed-controls"><button data-speed="1" class="active">1×</button><button data-speed="2">2×</button><button data-speed="4">4×</button></div>
-        <div class="playback-end"><span class="live-dot"></span> AI SIMULATION <kbd>SPACE</kbd></div>
+
       </div>
-      <section class="stats">
-        <div class="stats-title"><span class="eyebrow">MATCH INSIGHTS</span><span>ゲームを数字で追いかける。</span></div>
+      </section><details class="stats compact-panel"><summary>試合データ</summary>
+
         <div class="stat-grid">
           <div class="possession-stat"><div class="stat-label">攻撃時間 <span>POSSESSION</span></div>
             <div class="possession-values"><b id="home-possession">50%</b><b id="away-possession">50%</b></div>
@@ -62,27 +61,26 @@
           <div class="simple-stat"><div class="stat-label">チームファウル <span>TEAM FOULS / Q</span></div><div><b id="home-fouls">0</b><span>—</span><b id="away-fouls">0</b></div></div>
           <div class="simple-stat"><div class="stat-label">フリースロー <span>FREE THROWS</span></div><div><b id="home-ft">0/0</b><span>—</span><b id="away-ft">0/0</b></div></div>
         </div>
-      </section>
-    </section>
-    <aside class="control-panel">
+      </details>
+    <aside class="control-panel"><details class="compact-panel"><summary>試合設定</summary><div class="setup-fields">
       <section class="settings-card">
-        <div class="card-heading"><span class="eyebrow">01 / THE TEAMS</span><h2>Match setup</h2><p>対戦チームを選ぶ。</p></div>
-        <label for="home-select">HOME TEAM</label>
+
+        <label for="home-select">ホーム</label>
         <select id="home-select"></select>
-        <label for="away-select">AWAY TEAM</label>
+        <label for="away-select">アウェイ</label>
         <select id="away-select"></select>
-        <button id="new-match" class="primary-button">NEW MATCH <span>↗</span></button>
+        <button id="new-match" class="primary-button">新しい試合をはじめる</button>
       </section>
-      
+
       <section class="settings-card">
-        <div class="card-heading"><span class="eyebrow">03 / GAME PLAN</span><h2>Play style</h2><p>シュート判断を調整する。</p></div>
-        <label for="style-select">OFFENSE</label>
+
+        <label for="style-select">攻撃スタイル</label>
         <select id="style-select"><option value="balanced">BALANCED / バランス</option><option value="perimeter">PERIMETER / 外角重視</option></select>
-        <div class="rule-note"><strong>GAME RULES</strong><p>5対5・10分×4クォーター・24秒ショットクロック。シュート中のファウルは2本・3本、得点時は追加1本。第5チームファウル以降は2本のフリースロー。フリースロー中は時計を停止します。</p></div>
+        <details class="rule-note"><summary>試合ルール</summary><p>5対5・10分×4クォーター・24秒ショットクロック。シュート中のファウルは2本・3本、得点時は追加1本。第5チームファウル以降は2本のフリースロー。フリースロー中は時計を停止します。</p></details>
       </section>
-    </aside>
+    </div></details></aside>
   </div>
-  <footer><span>COURTSIDE / PROCEDURAL BASKETBALL DEMO</span><span>FICTIONAL TEAMS & PLAYERS · THREE.JS</span><span>PLAYER HEADS · QUATERNIUS UNIVERSAL BASE CHARACTERS (CC0)</span></footer>
+  <footer><span>FICTIONAL TEAMS & PLAYERS · THREE.JS</span><span>PLAYER HEADS · QUATERNIUS UNIVERSAL BASE CHARACTERS (CC0)</span></footer>
 </main>
 <script type="module" src="./main.js"></script>
 </body>

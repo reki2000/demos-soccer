@@ -119,3 +119,15 @@ test('every soccer profile carries a Japanese annotated display name', async () 
   assert.ok(getPlayerProfile('japan', 0).nameJa.includes('高橋'));
   assert.ok(getPlayerProfile('brazil', 0).nameJa.includes('ルーカス'));
 });
+
+test('ankle height and boot pitch stay continuous at toe-off and touchdown', () => {
+  for (const speed of [.3, 2, 5]) {
+    const { duty } = gaitPose(0, speed);
+    for (const transition of [duty, 1]) {
+      const before = gaitPose((transition - 1e-6) * 2 * Math.PI, speed).feet[0];
+      const after = gaitPose((transition + 1e-6) * 2 * Math.PI, speed).feet[0];
+      assert.notEqual(before.stance, after.stance);
+      for (const axis of ['y', 'z', 'pitch']) assert.ok(Math.abs(after[axis] - before[axis]) < .0001);
+    }
+  }
+});

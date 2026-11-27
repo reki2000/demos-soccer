@@ -177,7 +177,7 @@ export class ArenaAudio {
   // the first available Japanese male voice at full rate; the analyst takes
   // a *different* Japanese male voice (or, when only one exists, the same
   // voice lowered and slowed) so the two are audibly separate people.
-  speak(text,priority=false,role='play') {
+  speak(text,priority=false,role='play',moment='') {
     if(!this.commentaryEnabled||!this.playing||!this.env.SpeechSynthesisUtterance)return false;
     const synth=this.env.speechSynthesis;
     if(!priority&&(synth?.speaking||synth?.pending))return false;
@@ -208,6 +208,15 @@ export class ArenaAudio {
       speech.pitch=this.voicePreference==='male'
         ?(role==='analysis'?.74:.88)
         :(role==='analysis'?.92:1);
+      if(role==='play'){
+        if(['goal','goalLead','equalizer','score','dunk','dunkScore'].includes(moment)){
+          speech.pitch+=.15;
+          speech.rate*=1.06;
+        } else if(['halftime','fulltime','freeThrowAttempt','freeThrowStart','quarter'].includes(moment)){
+          speech.pitch-=.05;
+          speech.rate*=.90;
+        }
+      }
       speech.onstart=()=>{
         if(token===this.speechToken)this.status('voice','日本語実況を再生中','on');
       };
@@ -373,7 +382,7 @@ export class ArenaAudio {
     if(now-this.lastSpoken<1300&&!urgent)return;
     const line=details?.commentary||commentaryLine(type,details,teams);
     if(!line)return;
-    if(this.speak(line,urgent))this.lastSpoken=now;
+    if(this.speak(line,urgent,'play',type))this.lastSpoken=now;
   }
   dispose() {
     this.setCommentary(false);

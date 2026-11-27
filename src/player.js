@@ -29,6 +29,14 @@ function segment(parent, top, bottom, length, mat, y = -length / 2) {
   return mesh(parent, new THREE.CylinderGeometry(top, bottom, length, 8), mat, 0, y);
 }
 
+// Cross-sections run from the lowest point to the highest in joint space.
+function shapedSegment(parent, rings, depth, mat) {
+  const profile = rings.map(([y, radius]) => new THREE.Vector2(radius, y));
+  const part = mesh(parent, new THREE.LatheGeometry(profile, 16), mat, 0, 0);
+  part.scale.z = depth;
+  return part;
+}
+
 // The head is the imported CC0 base model (face.js / head-model.js),
 // morphed per player: face type drives jaw, eyes, brows, nose and lips,
 // and the hairstyle picks one of the model's hair variants. A stable
@@ -55,13 +63,12 @@ export function createPlayer(p, team) {
   pelvis.scale.x = profile.build;
   segment(pelvis, .165, .175, .18, shorts, .035).scale.z = .62;
   const torso = joint(pelvis, 0, .08);
-  // Slim, tapered torso: narrower waist and shoulders, a small head, and
-  // long articulated legs: ~7.2 heads tall.
-  segment(torso, .205, .14, .52, kit, .27).scale.z = .60;
-  // Kit detailing: a chest band and collar in the trim colour break up the
-  // plain cylinder and read as a designed shirt at broadcast distance.
-  segment(torso, .175, .168, .055, trim, .145).scale.z = .615;
-  mesh(torso, new THREE.CylinderGeometry(.082, .092, .05, 8), trim, 0, .545, -.04).scale.z = .8;
+  kit.flatShading = sock.flatShading = skin.flatShading = false;
+  shapedSegment(torso, [[.01, 0], [.01, .168], [.06, .171], [.15, .153],
+    [.28, .173], [.39, .204], [.46, .212], [.49, .19], [.53, .098], [.54, .07]],
+    .63, kit);
+  shapedSegment(torso, [[.132, .157], [.153, .156]], .64, trim);
+  shapedSegment(torso, [[.525, .104], [.545, .078], [.548, .067]], .84, trim);
   const head = joint(torso, 0, .72);
   // The imported head is cut at the jaw line; a slim neck cylinder on
   // the torso bridges the collar to the jaw (the model's own long,
@@ -75,9 +82,11 @@ export function createPlayer(p, team) {
     segment(hip, .078, .055, .23, p.role === 'coach' ? shorts : skin, -.345);
     const knee = joint(hip, 0, -THIGH);
     mesh(knee, new THREE.IcosahedronGeometry(.06, 1), skin, 0, -.005);
-    segment(knee, .06, .038, SHIN, p.role === 'coach' ? shorts : sock);
+    shapedSegment(knee, [[-SHIN, .039], [-.40, .041], [-.29, .047],
+      [-.17, .064], [-.11, .068], [-.045, .058], [0, .053]],
+      1.08, p.role === 'coach' ? shorts : sock);
     const ankle = joint(knee, 0, -SHIN);
-    const shoe = mesh(ankle, new THREE.IcosahedronGeometry(.1, 1), boot, 0, -.04, .065);
+    const shoe = mesh(ankle, new THREE.SphereGeometry(.1, 16, 10), boot, 0, -.04, .065);
     shoe.scale.set(.66, .52, 1.45);
     legs.push({ hip, knee, ankle });
     const shoulder = joint(torso, side * .205, .465);
@@ -98,7 +107,7 @@ export function createPlayer(p, team) {
     ctx.textAlign = 'center';
     ctx.fillText(String(p.slot + 1), 32, 48);
     const number = mesh(torso, new THREE.PlaneGeometry(.23, .25),
-      new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true }), 0, .30, -.112);
+      new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true }), 0, .30, -.128);
     number.rotation.y = Math.PI;
   }
   const heightScale = profile.height / 195.5;
@@ -142,6 +151,8 @@ export function posePlayer(model, p) {
   torso.rotation.x = (.055 + gait.sprint * .12) * run + lean.pitch + (p.action === 'shield' ? .12 : .20) * contest - chestTrap * .24 + header * .32 + stumble * .35;
   torso.rotation.y = -Math.sin(phase) * .10 * run + (p.action === 'shield' ? .34 * contest : 0);
   torso.rotation.z = Math.sin(phase) * .015 * run + stumble * .15 + lean.roll;
+  torso.rotation.y += kick * .28;
+  torso.rotation.z -= kick * .10;
   head.rotation.x = -torso.rotation.x * .65 + header * .25;
   head.rotation.y = -torso.rotation.y * .5;
   for (let i = 0; i < 2; i++) {
@@ -156,7 +167,13 @@ export function posePlayer(model, p) {
       footZ += footTrap * (.40 - actionProgress * .17);
       footY += footTrap * (p.action === 'cushion' ? .43 : .07);
     }
-    if (i === 1 && kick > 0) { footZ += kick * .5; footY += kick * .12; }
+    if (i === 1 && kick > 0) {
+      // The ball is already released when this action starts. Snap through
+      // contact quickly, then let the raised boot settle back into the stride.
+      const followThrough = Math.sin(Math.sqrt(actionProgress) * Math.PI);
+      footZ += followThrough * .56;
+      footY += followThrough * (.14 + .21 * actionProgress);
+    }
     const down = HIP_HEIGHT + bounce - footY;
     const reach = clamp(Math.hypot(down, footZ), .15, THIGH + SHIN - .003);
     // Two-bone inverse kinematics keeps the supporting boot close to the ground.
