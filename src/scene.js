@@ -36,7 +36,7 @@ export class StadiumScene{
    this.environment.update(dt);
    updateSidelines(this.sidelines,this.match,dt,playing && !this.match.ended && !this.match.pause);
    if(playing) animateCrowd(this.crowd,dt);
-   for(let i=0;i<this.models.length;i++) posePlayer(this.models[i],this.match.players[i],this.match.ball);
+   for(let i=0;i<this.models.length;i++) posePlayer(this.models[i],this.match.players[i],this.match.ball,this.match.flight);
    const b=this.match.ball;
    this.rollAxis.set(b.z-this.ball.position.z,0,this.ball.position.x-b.x);
    const travel=this.rollAxis.length();

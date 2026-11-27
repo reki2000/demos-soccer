@@ -222,7 +222,8 @@ export class BasketballMatch {
     from.heading=Math.atan2(recipient.x-from.x,recipient.z-from.z);
     from.throwHeading=from.heading;
     from.throwTime=duration;
-    const hand=this.ballControl?.hand??1;
+    const across=(from.x-recipient.x)*Math.cos(recipient.heading)-(from.z-recipient.z)*Math.sin(recipient.heading);
+    const hand=Math.sign(across)||1;
     this.flight={kind:'pass',team:from.team,from:from.id,to:recipient.id,
       hand,start:{...this.ball},release:releasePoint(from,'pass'),
       end:receivePoint(recipient,hand),t:0,duration,stage:'gather'};

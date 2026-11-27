@@ -17,11 +17,16 @@ export function bodyLean(speed, turnRate = 0, accel = 0) {
   };
 }
 
-export function gaitPose(phase, speed, scale = 1) {
+export function strideTempo(p) {
+  const stature=p.profile?.height??180;
+  return clamp(1+(180-stature)*.0035+clamp(p.accel||0,-4,6)*.016,.86,1.18);
+}
+
+export function gaitPose(phase, speed, scale = 1, tempo = 1) {
   const moving = smooth(speed / .8);
   const sprint = smooth((speed - 1.1) / 3.4);
   const duty = .62 - sprint * .29;
-  const frequency = strideFrequency(speed);
+  const frequency = strideFrequency(speed)*tempo;
   // Match the backward travel of the planted foot to the body's forward travel.
   const reach = frequency > 0 ? speed / scale * duty / (2 * frequency) : 0;
   const cycle = ((phase / (Math.PI * 2)) % 1 + 1) % 1;

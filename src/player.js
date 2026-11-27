@@ -1,6 +1,8 @@
+import { aimLimb } from './limb-ik.js';
+import {keeperShape,keeperArmScale} from './keeper.js';
 import * as THREE from 'three';
 import { getPlayerProfile } from './roster.js';
-import { gaitPose, bodyLean } from './gait.js';
+import { gaitPose, bodyLean, strideTempo } from './gait.js';
 import { buildImportedHead } from './face.js';
 
 const material = color => new THREE.MeshStandardMaterial({ color, roughness: .85, flatShading: true });
@@ -75,28 +77,42 @@ export function createPlayer(p, team) {
   // slanted neck looked wrong against the stylised body).
   mesh(torso, new THREE.CylinderGeometry(.05, .05, .16, 8), skin, 0, .60, -.04);
   addHead(head, profile);
+  const keeper=p.slot===0 && !p.role;
+  const legScale=keeper?1:.96+.014*(p.slot%6);
+  const shoulders=keeper?1:.91+.033*((p.slot+2)%7);
+  torso.scale.set(shoulders,1-(legScale-1)*1.15,1);
+  pelvis.position.y+= (legScale-1)*(THIGH+SHIN);
+  const glove=keeper ? material(0xe7eddd) : null;
   const legs = [], arms = [];
   for (const side of [-1, 1]) {
     const hip = joint(pelvis, side * .092, 0);
+    hip.scale.setScalar(legScale);
     segment(hip, .095, .08, .23, shorts);
-    segment(hip, .078, .055, .23, p.role === 'coach' ? shorts : skin, -.345);
+    segment(hip, .078, .055, .23, p.role === 'coach' ? shorts : skin, -.345).scale.z = profile.build;
     const knee = joint(hip, 0, -THIGH);
     mesh(knee, new THREE.IcosahedronGeometry(.06, 1), skin, 0, -.005);
     shapedSegment(knee, [[-SHIN, .039], [-.40, .041], [-.29, .047],
       [-.17, .064], [-.11, .068], [-.045, .058], [0, .053]],
-      1.08, p.role === 'coach' ? shorts : sock);
+      1.08*profile.build, p.role === 'coach' ? shorts : sock);
     const ankle = joint(knee, 0, -SHIN);
     const shoe = mesh(ankle, new THREE.SphereGeometry(.1, 16, 10), boot, 0, -.04, .065);
     shoe.scale.set(.66, .52, 1.45);
     legs.push({ hip, knee, ankle });
     const shoulder = joint(torso, side * .205, .465);
+    shoulder.scale.setScalar(keeper ? keeperArmScale({...p,profile}) : .95+.018*(p.slot%7));
     segment(shoulder, .078, .064, .15, kit);
     segment(shoulder, .056, .042, .15, skin, -.225);
     const elbow = joint(shoulder, 0, -.30);
     segment(elbow, .046, .03, .26, skin);
-    const hand = mesh(elbow, new THREE.IcosahedronGeometry(p.slot===0&&!p.role?.length ? .07 : .052, 1), p.slot===0&&!p.role?.length ? material(0xe7eddd) : skin, 0, -.285);
-    hand.scale.set(.8, 1.25, .65);
-    arms.push({ shoulder, elbow, side });
+    const hand = mesh(elbow, new THREE.SphereGeometry(keeper?.075:.052,12,8),glove??skin,0,-.285);
+    hand.scale.set(keeper?.97:.8,keeper?1.29:1.25,keeper?.63:.65);
+    if(keeper){
+      segment(elbow,.046,.053,.06,trim,-.23);
+      const thumb=mesh(elbow,new THREE.SphereGeometry(.027,8,6),glove,-side*.056,-.277,.02);
+      thumb.scale.set(.72,1.45,.75);
+      thumb.rotation.z=-side*.42;
+    }
+    arms.push({ shoulder, elbow, hand, side });
   }
   if (typeof document !== 'undefined' && !['coach', 'referee'].includes(p.role)) {
     const canvas = document.createElement('canvas');
@@ -112,13 +128,22 @@ export function createPlayer(p, team) {
   }
   const heightScale = profile.height / 195.5;
   g.scale.setScalar(heightScale);
-  return { g, pelvis, torso, head, legs, arms, heightScale, profile };
+  return { g, pelvis, torso, head, legs, arms, heightScale, legScale, profile };
 }
 
-export function posePlayer(model, p, ball) {
+const limbTarget=new THREE.Vector3(), gloveNormal=new THREE.Vector3();
+const elbowPole=new THREE.Vector3(), kneePole=new THREE.Vector3(0,0,1);
+const ankleLevel=new THREE.Quaternion();
+export function posePlayer(model, p, ball, flight) {
   const { g, pelvis, torso, head, legs, arms } = model;
   const speed = p.speed ?? p.running * 4;
-  const gait = gaitPose(p.phase, speed, model.heightScale);
+  const tempo=strideTempo(p);
+  const gait = gaitPose(p.phase, speed, model.heightScale,tempo);
+  const keeperActive=ball && p.slot===0 && !p.role && (p.keeperReach>.03 || p.action==='parry' || p.action==='catch');
+  const keeper=keeperActive?keeperShape(p):null;
+  const remaining=flight?.target===p.id && ball && ball.y<1.1 && Math.hypot(ball.x-p.x,ball.z-p.z)<4 ? (1-flight.progress)*flight.duration : Infinity;
+  const prepare=clamp(1-remaining/.28,0,1)||0;
+  const side=p.receiveSide??1;
   const run = gait.moving;
   const contest = p.contest || 0;
   const phase = p.phase;
@@ -130,28 +155,30 @@ export function posePlayer(model, p, ball) {
   const kick = p.action === 'kick' ? absorb : 0;
   const stumble = p.action === 'stumble' ? absorb : 0;
   // Lower the hips in a run; two small vertical oscillations per complete stride.
-  const bounce = gait.hipOffset;
+  const bounce = keeper ? -keeper.drop : gait.hipOffset-.07*prepare;
   // Arm swing trails the thigh by a short phase lag instead of mirroring it
   // exactly, like a real arm swing lagging behind the leg.
   const ARM_LAG = .6;
-  const gaitLag = gaitPose(phase - ARM_LAG, speed, model.heightScale);
+  const gaitLag = gaitPose(phase - ARM_LAG, speed, model.heightScale,tempo);
+  const thigh=THIGH*model.legScale, shin=SHIN*model.legScale;
   const lagHipAngle = i => {
     const lf = gaitLag.feet[i];
     const fz = lf.z * (p.strideDirection ?? 1), fy = lf.y;
-    const down = HIP_HEIGHT + bounce - fy;
-    const reach = clamp(Math.hypot(down, fz), .15, THIGH + SHIN - .003);
+    const down = pelvis.position.y + bounce - fy;
+    const reach = clamp(Math.hypot(down, fz), .15, thigh + shin - .003);
     return Math.atan2(-fz, down) - Math.acos(clamp(
-      (THIGH * THIGH + reach * reach - SHIN * SHIN) / (2 * THIGH * reach), -1, 1));
+      (thigh * thigh + reach * reach - shin * shin) / (2 * thigh * reach), -1, 1));
   };
   g.position.set(p.x, .045 + (bounce + (p.jump || 0)) * model.heightScale, p.z);
   g.rotation.set(0, p.angle, 0, 'YXZ');
+  pelvis.position.x=keeper?.shift??0;
   pelvis.rotation.y = Math.sin(phase) * .025 * run;
   pelvis.rotation.z = Math.cos(phase) * .012 * run;
   const lean = bodyLean(speed, p.turnRate || 0, p.accel || 0);
   torso.rotation.x = (.055 + gait.sprint * .12) * run + lean.pitch + (p.action === 'shield' ? .12 : .20) * contest - chestTrap * .24 + header * .32 + stumble * .35;
   torso.rotation.y = -Math.sin(phase) * .10 * run + (p.action === 'shield' ? .34 * contest : 0);
   torso.rotation.z = Math.sin(phase) * .015 * run + stumble * .15 + lean.roll;
-  torso.rotation.y += kick * .28;
+  torso.rotation.y += kick*.28+side*(prepare*.18+footTrap*.22);
   torso.rotation.z -= kick * .10;
   head.rotation.x = -torso.rotation.x * .65 + header * .25;
   head.rotation.y = -torso.rotation.y * .5;
@@ -168,11 +195,14 @@ export function posePlayer(model, p, ball) {
     const foot = gait.feet[i];
     let footZ = foot.z * (p.strideDirection ?? 1);
     let footY = foot.y;
+    const planted=arms[i].side!==side ? Math.max(footTrap,prepare) : 0;
+    footZ+=( -.11-footZ)*planted;
+    footY+=( .095-footY)*planted;
     if (p.action === 'tackle' && i === 1) {
       footZ += contest * .38;
       footY += contest * .075;
     }
-    if (i === 1 && footTrap > 0) {
+    if (arms[i].side === side && footTrap > 0) {
       footZ += footTrap * (.40 - actionProgress * .17);
       footY += footTrap * (p.action === 'cushion' ? .43 : .07);
     }
@@ -183,16 +213,17 @@ export function posePlayer(model, p, ball) {
       footZ += followThrough * .56;
       footY += followThrough * (.14 + .21 * actionProgress);
     }
-    const down = HIP_HEIGHT + bounce - footY;
-    const reach = clamp(Math.hypot(down, footZ), .15, THIGH + SHIN - .003);
+    const down = pelvis.position.y + bounce - footY;
+    const reach = clamp(Math.hypot(down, footZ), .15, thigh + shin - .003);
     // Two-bone inverse kinematics keeps the supporting boot close to the ground.
     const hipAngle = Math.atan2(-footZ, down) - Math.acos(clamp(
-      (THIGH * THIGH + reach * reach - SHIN * SHIN) / (2 * THIGH * reach), -1, 1));
+      (thigh * thigh + reach * reach - shin * shin) / (2 * thigh * reach), -1, 1));
     const kneeAngle = Math.PI - Math.acos(clamp(
-      (THIGH * THIGH + SHIN * SHIN - reach * reach) / (2 * THIGH * SHIN), -1, 1));
+      (thigh * thigh + shin * shin - reach * reach) / (2 * thigh * shin), -1, 1));
     legs[i].hip.rotation.x = hipAngle;
-    legs[i].hip.rotation.y = i === 1 ? footTrap * .65 : 0;
-    legs[i].hip.rotation.z = (i === 0 ? -.035 : .035) * contest;
+    legs[i].hip.rotation.y = arms[i].side === side ? side*footTrap*.65 : 0;
+    const cut=clamp(p.turnRate||0,-3,3)*.038*run;
+    legs[i].hip.rotation.z = arms[i].side*.035*contest+(foot.stance?cut:0);
     legs[i].knee.rotation.x = kneeAngle;
     legs[i].ankle.rotation.x = -(hipAngle + kneeAngle) + foot.pitch;
     const armPhase = phase - ARM_LAG + i * Math.PI;
@@ -232,6 +263,48 @@ export function posePlayer(model, p, ball) {
       arms[i].shoulder.rotation.z += arms[i].side * Math.sin(idleT * 1.1 + i * 2.4) * .025 * idleAmt;
       arms[i].elbow.rotation.x += Math.sin(idleT * 1.3 + i * 1.1) * .03 * idleAmt;
     }
+  }
+  if (keeper) {
+    pelvis.rotation.set(0,0,0);
+    torso.rotation.set(keeper.pitch,0,keeper.roll);
+    const crouch=Math.min(1,(p.keeperLow||0)*1.6);
+    for(let i=0;i<2 && crouch>0;i++){
+      const side=arms[i].side, leg=legs[i];
+      const across=side*(.18+.19*crouch);
+      const ahead=.07+side*(p.keeperDive||0)*.12;
+      limbTarget.set(p.x+Math.cos(p.angle)*across+Math.sin(p.angle)*ahead,
+        .14+(p.jump||0)*model.heightScale,p.z-Math.sin(p.angle)*across+Math.cos(p.angle)*ahead);
+      kneePole.set(side*.55,0,1);
+      aimLimb(leg.hip,leg.knee,SHIN,limbTarget,kneePole,crouch);
+      ankleLevel.copy(leg.hip.quaternion).multiply(leg.knee.quaternion).invert();
+      leg.ankle.quaternion.slerp(ankleLevel,crouch);
+    }
+    const parry=p.action==='parry', caught=p.action==='catch';
+    const blend=parry ? Math.min(1,3*p.actionTime/p.actionDuration) : caught?1:p.keeperReach;
+    for (const arm of arms) {
+      const primary=arm.side===(p.saveSide??Math.sign(p.keeperDive));
+
+      if(parry){
+        limbTarget.set(p.saveX,p.saveY,p.saveZ);
+      }else limbTarget.set(ball.x,ball.y,ball.z);
+      arm.shoulder.getWorldPosition(gloveNormal);
+      gloveNormal.sub(limbTarget).normalize();
+      limbTarget.addScaledVector(gloveNormal,.10);
+      elbowPole.set(arm.side*.65,-1,-.4);
+      aimLimb(arm.shoulder,arm.elbow,.285,limbTarget,elbowPole,blend*(parry&&!primary?.18:1));
+    }
+  } else if(ball && (footTrap>.001 || prepare>0) && !p.fallAmount){
+    const localSide=(ball.x-p.x)*Math.cos(p.angle)-(ball.z-p.z)*Math.sin(p.angle);
+    const useSide=footTrap>0?side:(Math.sign(localSide)||side);
+    const leg=legs[useSide===1?1:0];
+    // Contact the inside edge of the boot; the ankle sits just behind it.
+    limbTarget.set(ball.x+Math.cos(p.angle)*useSide*.10-Math.sin(p.angle)*.11,
+      Math.max(.13,Math.min(.72,ball.y)),ball.z-Math.sin(p.angle)*useSide*.10-Math.cos(p.angle)*.11);
+    const touch=footTrap>0 ? Math.min(1,actionProgress/.20,(1-actionProgress)/.18) : .55*prepare;
+    kneePole.set(useSide*.12,0,1);
+    aimLimb(leg.hip,leg.knee,SHIN,limbTarget,kneePole,touch);
+    ankleLevel.copy(leg.hip.quaternion).multiply(leg.knee.quaternion).invert();
+    leg.ankle.quaternion.slerp(ankleLevel,touch);
   }
   const fall = p.fallAmount || 0;
   if (fall > 0) {
