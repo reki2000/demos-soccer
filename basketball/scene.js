@@ -1,3 +1,4 @@
+import {createArenaCrowd} from './stands.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import {createBasketball, createHoopNet} from './equipment.js';
@@ -363,18 +364,7 @@ export class ArenaScene {
         cuboid(this.world,[1.45,.75,30],row%2?0x233044:0x35465b,[x,.4+row*.74,0]);
       }
     }
-    const spectator = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(.23,0),material(0x8796a2),400);
-    const dummy = new THREE.Object3D();
-    for(let i=0;i<400;i++){
-      const side = i%2 ? 1 : -1, row = Math.floor(i/50)%7, seat = Math.floor(i/2)%25;
-      const color = new THREE.Color([0x8bacc1,0xc2b69a,0xbd7873,0x748b80,0x617184][(i*7+row)%5]);
-      spectator.setColorAt(i,color);
-      dummy.position.set(-15+seat*1.25,.95+row*.58,side*((side>0?11.25:9.1)+row*1.25));
-      dummy.scale.set(.72,1.4,.88);
-      dummy.updateMatrix();spectator.setMatrixAt(i,dummy.matrix);
-    }
-    spectator.castShadow=false;
-    this.world.add(spectator);
+    this.world.add(createArenaCrowd());
     for(const x of [-15.6,15.6]) {
       cuboid(this.world,[.7,7,.7],0x233044,[x,10,-16]);
       cuboid(this.world,[.7,7,.7],0x233044,[x,10,16]);

@@ -24,7 +24,7 @@ test('commentary substitutes real teams and names and avoids repeating recent li
   const captions=[],c=new Commentary(x=>{if(x)captions.push(x)},()=>.5),m=game();
   for(let i=0;i<10;i++){c.current=null;c.now+=10;c.offer('pass',c.context(m,countries),25)}
   assert.equal(new Set(captions.map(x=>x.id)).size,10);
-  assert.ok(captions.every(x=>x.text.includes(m.owner.profile.name)&&!/[{}]/.test(x.text)));
+  assert.ok(captions.every(x=>x.text.includes(m.owner.profile.nameJa.split(' ')[0])&&!x.text.includes(m.owner.profile.name)&&!/[{}]/.test(x.text)));
 });
 
 test('goal subtitles preempt normal play and cannot be replaced by a routine pass',()=>{
@@ -187,4 +187,14 @@ test('head is a sculpted imported mesh whose shape varies by face type',()=>{
   assert.equal(a.length,b.length);
   let maxDiff=0;for(let i=0;i<a.length;i++)maxDiff=Math.max(maxDiff,Math.abs(a[i]-b[i]));
   assert.ok(maxDiff>.005,`face morph difference: ${maxDiff}`);
+});
+
+test('soccer names use the family name of the passer and receiver in either order',()=>{
+  const m=game(), c=new Commentary();
+  for(const [team,expected,target] of [[0,'高橋','森'],[1,'フェレイラ','コスタ']]){
+    m.owner=null;m.flight={passer:team*11,target:team*11+1};
+    const ctx=c.context(m,countries);
+    assert.equal(ctx.player,expected);
+    assert.equal(ctx.receiver,target);
+  }
 });

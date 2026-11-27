@@ -31,7 +31,17 @@ export function createSurfaceTextures(renderer) {
       for(const x of [8,248]) for(const y of [8,120,136,248]){ctx.fillStyle='#6f746e88';ctx.beginPath();ctx.arc(x,y,1.5,0,Math.PI*2);ctx.fill()}
     }
     if(kind==='roof') for(let x=0;x<256;x+=16){ctx.fillStyle='#ffffff44';ctx.fillRect(x,0,2,256);ctx.fillStyle='#1f2a3433';ctx.fillRect(x+3,0,2,256)}
-    if(kind==='seats') for(let x=0;x<256;x+=32){ctx.fillStyle='#35463855';ctx.fillRect(x,0,2,256);ctx.fillStyle='#ffffff22';ctx.fillRect(x+5,20,22,90)}
+    if(kind==='seats') {
+      // Moulded seat backs, recessed centres and the lip of the row below.
+      for(let y=0;y<256;y+=128)for(let x=0;x<256;x+=32){
+        ctx.fillStyle='#27332c55';ctx.fillRect(x+1,y+6,30,116);
+        ctx.fillStyle='#f4f8df45';ctx.fillRect(x+4,y+7,24,5);
+        ctx.fillStyle='#e4e9cb24';ctx.fillRect(x+4,y+12,3,69);
+        ctx.fillStyle='#28372d30';ctx.fillRect(x+8,y+25,16,52);
+        ctx.fillStyle='#faf9de40';ctx.fillRect(x+4,y+91,24,5);
+        ctx.fillStyle='#25342d77';ctx.fillRect(x,y+121,32,5);
+      }
+    }
     if(kind==='windows') for(let x=4;x<256;x+=24)for(let y=4;y<256;y+=30){ctx.fillStyle=random()<.2?'#e1cb87':'#2d4c62';ctx.fillRect(x,y,15,20);ctx.fillStyle='#c4d4d644';ctx.fillRect(x,y,2,20)}
     if(kind==='water') for(let y=0;y<256;y+=8){ctx.strokeStyle='#e0f8fa40';ctx.beginPath();for(let x=0;x<=256;x+=8){const h=y+Math.sin(x*.06+y)*2;x?ctx.lineTo(x,h):ctx.moveTo(x,h)}ctx.stroke()}
     const texture = new THREE.CanvasTexture(canvas);texture.wrapS=texture.wrapT=THREE.RepeatWrapping;texture.colorSpace=THREE.SRGBColorSpace;

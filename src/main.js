@@ -42,7 +42,9 @@ const commentary=new Commentary(caption=>{
   $('commentary').classList.toggle('speaking',!!caption);
   if(caption&&arenaAudio.commentaryEnabled&&playing&&!highlights?.active){
     const now=Date.now();
-    if(now-lastCaptionSpeech>2300 && arenaAudio.speak(caption.text,false,caption.role??'play'))lastCaptionSpeech=now;
+    const decisive=['goal','equalizer','goalLead','fulltime'].includes(caption.category);
+    if((decisive || now-lastCaptionSpeech>2300) &&
+      arenaAudio.speak(caption.text,decisive,caption.role,caption.category))lastCaptionSpeech=now;
   }
 });
 new ResizeObserver(entries=>{const height=entries[0].contentRect.height;$('viewport').style.setProperty('--caption-offset',Math.ceil(height+40)+'px')}).observe($('commentary'));

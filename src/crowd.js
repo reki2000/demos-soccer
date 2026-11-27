@@ -37,11 +37,14 @@ export function createCrowd(teams) {
   const skin = [0xe2b88d, 0xb98259, 0x835736, 0xf1cbb0, 0xa66d44];
   const hairstyles = [0x252822, 0x614430, 0xa78653, 0x898d86];
   const waving = [];
+  let scarfCount = 0;
   for (let i = 0; i < count; i++) {
     const p = people[i];
     const scale = .8 + random() * .36;
     const leaning = (random() - .5) * .18;
-    const shirt = palette[Math.floor(random() * palette.length)];
+    const along = Math.abs(p.x) > 61 && Math.abs(p.z) < 42 ? p.z : p.x;
+    const block = Math.abs(Math.floor((along + 70) / 18) + (p.z > 0 ? 1 : 0)) % 2;
+    const shirt = random() < .39 ? teams[block].shirt : palette[Math.floor(random() * palette.length)];
     object.position.set(p.x, p.y, p.z);
     object.rotation.set(leaning, p.facing, (random() - .5) * .08);
     object.scale.set(scale, scale, scale * .7);
@@ -60,10 +63,17 @@ export function createCrowd(teams) {
     hair.setColorAt(i, color.set(hairstyles[Math.floor(random() * hairstyles.length)]));
     object.position.set(p.x + Math.sin(p.facing) * .16, p.y, p.z + Math.cos(p.facing) * .16);
     object.rotation.set(leaning, p.facing, 0);
-    object.scale.setScalar(random() < .3 ? scale : .001);
-    object.updateMatrix();
-    scarves.setMatrixAt(i, object.matrix);
-    scarves.setColorAt(i, color.set(i % 2 ? teams[0].shirt : teams[1].shirt));
+    if (random() < .3) {
+      // Some supporters stretch a scarf across the shoulders; others wear it.
+      const across = random() < .27;
+      object.rotation.z = across ? Math.PI/2 + leaning : leaning;
+      object.position.y += (across ? .27 : .04) * scale;
+      object.scale.set(scale,scale*(across ? 1.8 : 1),scale);
+      object.updateMatrix();
+      scarves.setMatrixAt(scarfCount,object.matrix);
+      scarves.setColorAt(scarfCount,color.set(teams[block].shirt));
+      scarfCount++;
+    }
     const cheer = random() < .17;
     for (let side = -1; side <= 1; side += 2) {
       const index = i * 2 + (side === 1 ? 1 : 0);
@@ -78,6 +88,7 @@ export function createCrowd(teams) {
       if (cheer && i % 4 === 0) waving.push(pose);
     }
   }
+  scarves.count = scarfCount;
   return { group, arms, waving, object, elapsed: 0 };
 }
 

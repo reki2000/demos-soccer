@@ -1,3 +1,4 @@
+import { announcerName } from './announcer-name.js';
 import { COMMENTARY_BANK } from './commentary-lines.js';
 import { ANALYSIS_BANK } from './commentary-analysis.js';
 import { playerPosition } from './roster.js';
@@ -58,9 +59,14 @@ export class Commentary {
     const receiver = match.flight?.target != null ? match.players[match.flight.target] : null;
     const profile = player?.profile;
     const settings = match.settings[player?.team ?? team] ?? match.settings[team];
+    const surname = (p, fallback) => announcerName(p?.profile?.nameJa, p?.profile?.name,
+      teams[p?.team]?.id === 'japan', fallback);
     return {
-      player: profile?.displayName ?? profile?.name ?? `${(player?.slot ?? 0) + 1}番の選手`,
-      receiver: receiver?.profile?.displayName ?? receiver?.profile?.name ?? '前方の味方',
+      player: surname(player, `${(player?.slot ?? 0) + 1}番の選手`),
+      receiver: surname(receiver, '前方の味方'),
+      minute: Math.floor(match.time / 60),
+      margin: match.score[team] - match.score[1 - team],
+      shots: match.shots[team],
       team: teams[team].name, opponent: teams[1 - team].name,
       score: `${match.score[0]}対${match.score[1]}`,
       clock: `${String(Math.floor(match.time / 60)).padStart(2, '0')}:${String(Math.floor(match.time % 60)).padStart(2, '0')}`,
@@ -127,7 +133,24 @@ export class Commentary {
   }
 
   showAnalysis(slot) {
-    const lines = ANALYSIS_BANK[slot.category];
+    let lines = ANALYSIS_BANK[slot.category];
+    const {minute, margin} = slot.context;
+    if (slot.category === 'goalLead' && minute >= 80) {
+      lines = ['{minute}分で均衡が破れました。{opponent}は同点を狙う人数を、どこで前に出すかです。',
+        '残り時間の短い中で{player}の勝ち越し弾。{team}は奪った次の一本を大事にしたいですね。'];
+    } else if (slot.category === 'goalLead' && slot.context.score !== '0対0') {
+      lines = ['決めたのは{player}。{minute}分で{score}、{opponent}はここから一点を追います。',
+        '{team}が一点リード。ここからは{opponent}が前に出る分、その背後にスペースができます。'];
+    } else if (slot.category === 'equalizer') {
+      lines = ['{player}が取り返して{score}。次に一点を取った側が前に出ます。',
+        '{minute}分、ここで追いつきました。{opponent}は再開直後のボールを落ち着かせたいですね。'];
+    } else if (slot.category === 'shot' && slot.context.shots > 0) {
+      lines = ['今ので{team}のシュートは{shots}本目。次はどの位置から打てるでしょう。',
+        '{team}はこれでシュート{shots}本。こぼれ球に誰が先に入るかも見どころです。'];
+    } else if (slot.category === 'halftime' && margin === 0) {
+      lines = ['前半を終えて{score}。後半の最初の一点で、追う側と守る側が分かれます。',
+        '同点で折り返します。後半は立ち上がりのプレスの高さに注目です。'];
+    }
     if (!lines) return false;
     if (this.now - (this.lastAnalysis.get(slot.category) ?? -100) < 18) return false;
     const history = this.usedAnalysis.get(slot.category) ?? [];
