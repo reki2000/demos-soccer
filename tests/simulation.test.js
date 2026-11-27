@@ -380,3 +380,24 @@ test('goal celebration runs in a straight line toward one fixed corner target', 
   assert.ok(Math.abs(target.z - scorer.z) < Math.abs(target.z - start.z), 'scorer should close on the corner in z');
   assert.ok(Math.abs(scorer.z) <= 31, 'scorer must stay inside the touchline');
 });
+
+test('a scored ball follows through the line, rebounds and settles inside either goal',()=>{
+  for(const half of [1,2]){
+    const m=new Match();
+    m.half=half;
+    const dir=m.direction(0);
+    m.flight={from:0,passer:9,x:dir*46,z:0,tx:dir*54,tz:.8,progress:.85,
+      peak:1.2,startY:.15,duration:.35,shot:true};
+    m.ball={x:dir*52.8,y:1.25,z:.68};
+    assert.ok(m.checkBoundary());
+    let furthest=0;
+    for(let i=0;i<180;i++){
+      m.updateCelebration(1/60);
+      assert.ok(Object.values(m.ball).every(Number.isFinite));
+      furthest=Math.max(furthest,dir*m.ball.x);
+    }
+    assert.ok(furthest>54 && furthest<55);
+    assert.ok(dir*m.ball.x>52.5 && dir*m.ball.x<furthest);
+    assert.equal(m.ball.y,.15);
+  }
+});

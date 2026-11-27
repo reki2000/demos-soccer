@@ -20,12 +20,12 @@ export function solveLeg(z, y) {
   return {hipX, kneeX, ankleX: -hipX - kneeX};
 }
 
-export function runningLegPose(phase, speed, isGuard, side, spread = 0) {
+export function runningLegPose(phase, speed, isGuard, side, spread = 0, accel=0, turnRate=0) {
   const pace = clamp(speed / 2.1, 0, 1);
   const cycle = (((phase + (side > 0 ? Math.PI : 0)) % TAU) + TAU) % TAU / TAU;
   const stance = cycle < .60;
   const progress = stance ? cycle / .60 : (cycle - .60) / .40;
-  const stride = (isGuard ? .10 : .265) * pace;
+  const stride = (isGuard ? .10 : .265) * pace / (1+clamp(accel,-5,6)*.018);
 
   // While planted, the foot moves backwards relative to the hips.
   // During recovery, the knee flexes and the ankle lifts over the floor.
@@ -41,7 +41,7 @@ export function runningLegPose(phase, speed, isGuard, side, spread = 0) {
     kneeX: angles.kneeX,
     // Counter-rotate the ankle so the shoe stays approximately flat.
     ankleX: angles.ankleX + (stance ? -.025 * pace : .08 * pace * Math.sin(Math.PI * progress)),
-    hipZ: side * (isGuard ? spread : .025),
+    hipZ: side * (isGuard ? spread : .025) + (stance ? clamp(turnRate,-3,3)*pace*.038 : 0),
     stance,
     lift,
     targetZ: z,

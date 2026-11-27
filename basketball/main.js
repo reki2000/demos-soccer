@@ -1,3 +1,4 @@
+import {setupViewControls} from '../src/view-controls.js';
 import { BasketballMatch, SQUADS, COURT, playerDisplayName } from './simulation.js';
 import { ArenaScene } from './scene.js';
 import { ArenaAudio } from './audio.js';
@@ -7,11 +8,12 @@ const $ = id => document.getElementById(id);
 let squads = [SQUADS[0], SQUADS[1]];
 let playing = true, speed = 1, scene = null, last = performance.now(), statsElapsed = 0, toastTimer;
 let match;
+setupViewControls();
 const arenaAudio=new ArenaAudio();
 arenaAudio.voicePreference='male'; // Play-by-play and analyst are two different men.
 arenaAudio.speechRate=2.0; // Faster play-by-play than the 1.43 default; the analyst follows at 85% of this.
 const describePlay=createBasketballCommentary();
-let eventSeq=0;
+let eventSeq=0, holdCallUntil=0;
 const ANALYSIS_TYPES=['score','dunk','shot','miss','rebound','steal','foul','feint','freeThrowMade','pass'];
 const captions = {
   pass: 'パスがつながる。オフェンスが展開する。',
@@ -30,8 +32,15 @@ const captions = {
   freeThrowMissed: 'フリースロー失敗。',
 };
 function displayEvent(type, info) {
-  const seq=++eventSeq;
   const major = ['score','quarter','fulltime','violation','foul','freeThrowStart','freeThrowMade','freeThrowMissed'].includes(type);
+  // Keep a decisive caption readable even when the simulation immediately
+  // awards an inbound. A new major decision can still take precedence.
+  if(!major && performance.now()<holdCallUntil){
+    arenaAudio.react(type);
+    return;
+  }
+  const seq=++eventSeq;
+  if(major)holdCallUntil=performance.now()+2200;
   const title=type==='score'?(info.dunk?'SLAM DUNK!':info.points===3?'THREE POINTS!':'TWO POINTS!')
     : type === 'dunk' ? 'DUNK ATTEMPT'
     : type === 'fulltime' ? 'FULL TIME'
@@ -100,6 +109,8 @@ function setPlaying(value) {
   $('live-label').textContent = match.ended ? 'FINAL SCORE' : value ? 'LIVE GAME' : 'PAUSED';
 }
 function restart() {
+  eventSeq++;
+  holdCallUntil=0;
   arenaAudio.stopSpeech();
   match.reset();
   match.settings.style = $('style-select').value;

@@ -1,4 +1,10 @@
-import { strideFrequency } from './gait.js';
+import {gloveReach} from './keeper.js';
+import { strideFrequency,strideTempo } from './gait.js';
+
+function receivingAngle(vx, vz, direction, opening) {
+  const source=Math.atan2(-vx,-vz), exit=Math.atan2(direction,0);
+  return source+Math.atan2(Math.sin(exit-source),Math.cos(exit-source))*opening;
+}
 
 export const countries = [
  {id:'japan',name:'日本',english:'JAPAN',code:'JPN',flag:'🇯🇵',shirt:0x245cde,shorts:0xf4f1e5},
@@ -245,6 +251,13 @@ export class Match {
       ? this.players[this.lastTouchPlayer] : this.players[team * 11 + 9];
     const friends = this.players.filter(p => p.team === team && p !== scorer && p.slot !== 0)
       .sort((a, b) => distance(a, scorer) - distance(b, scorer)).slice(0, 3).map(p => p.id);
+    const flight = this.flight;
+    const velocity = {
+      vx: this.loose?.vx ?? flight?.vx ?? (flight ? (flight.tx-flight.x)/flight.duration : this.direction(team)*6),
+      vz: this.loose?.vz ?? flight?.vz ?? (flight ? (flight.tz-flight.z)/flight.duration : 0),
+      vy: this.loose?.vy ?? (flight?.header ? flight.vy-9.8*flight.elapsed :
+        flight ? (.15-(flight.startY??.15)+4*(flight.peak??1.3)*(1-2*flight.progress))/flight.duration : 0),
+    };
     this.stopForRestart('kickoff', restartingTeam, 0);
     const laneSide = scorer.z >= 0 ? 1 : -1;
     // One fixed destination: the corner arc on the scorer's side. The old
@@ -252,7 +265,7 @@ export class Match {
     // "target" kept escaping sideways and scorers drifted diagonally
     // toward the touchline instead of running a celebration line.
     const target = { x: this.direction(team) * 46.5, z: laneSide * 29 };
-    this.celebration = { team, restartingTeam, scorer: scorer.id, friends, elapsed: 0, phase: 'celebrate', laneSide, target };
+    this.celebration = { team, restartingTeam, scorer: scorer.id, friends, elapsed: 0, phase: 'celebrate', laneSide, target, velocity };
     scorer.action = 'celebrate';
   }
 
@@ -266,7 +279,7 @@ export class Match {
       p.z += dz / gap * move;
       p.angle = Math.atan2(dx, dz);
     }
-    p.phase += dt * Math.PI * 2 * strideFrequency(p.speed);
+    p.phase += dt * Math.PI * 2 * strideFrequency(p.speed)*strideTempo(p);
     p.animTime = (p.animTime || 0) + dt;
     return gap < .25;
   }
@@ -276,6 +289,27 @@ export class Match {
     c.elapsed += dt;
     const scorer = this.players[c.scorer];
     if (c.phase === 'celebrate') {
+      const v = c.velocity;
+      if (v) {
+        const b = this.ball, dir = this.direction(c.team);
+        b.y += v.vy*dt - 4.9*dt*dt;
+        v.vy -= 9.8*dt;
+        if (b.y < .15) {
+          b.y = .15;
+          v.vy = v.vy < -.8 ? -v.vy*.28 : 0;
+        }
+        b.z = clamp(b.z+v.vz*dt,-3.55,3.55);
+        b.x += v.vx*dt;
+        const back = 52.5+2.4-.65*clamp(b.y/2.44,0,1)-.11;
+        if (dir*b.x >= back) {
+          b.x = dir*back;
+          v.vx = -dir*Math.abs(v.vx)*.10;
+          v.vz *= .3;
+        }
+        const drag = Math.exp(-dt*(b.y<=.16 ? 4.5 : 1.3));
+        v.vx *= drag;
+        v.vz *= drag;
+      }
       const arrived = this.walkTo(scorer, c.target ?? { x: this.direction(c.team) * 46.5, z: c.laneSide * 29 }, 2.6, dt);
       if (arrived) { scorer.speed = 0; scorer.running = 0; }
       scorer.action = 'celebrate';
@@ -443,8 +477,8 @@ export class Match {
     if (piece.type === 'throwIn') {
       const t = clamp(piece.elapsed / piece.duration, 0, 1);
       const reach = -.15 + t * .45;
-      this.ball.x = p.x + Math.sin(p.angle) * reach;
-      this.ball.z = p.z + Math.cos(p.angle) * reach;
+      this.ball.x = p.x + Math.sin(p.angle)*reach;
+      this.ball.z = p.z + Math.cos(p.angle)*reach;
       this.ball.y = 1.98 + Math.sin(t * Math.PI) * .16;
     }
     if (piece.type === 'throwIn' && piece.elapsed < piece.duration) return;
@@ -559,8 +593,17 @@ export class Match {
         const gap=distance(p,this.ball);
         const reach=threat&&gap<12?clamp((12-gap)/8,0,1):p.action==='catch'?1:0;
         p.keeperReach+=(reach-p.keeperReach)*(1-Math.exp(-dt*10));
-        const lateral=threat&&gap<8?clamp((this.ball.z-p.z)*this.direction(p.team)/4,-1,1):0;
-        p.keeperDive+=(lateral-p.keeperDive)*(1-Math.exp(-dt*8));
+        const f=this.flight;
+        const ahead=threat?Math.min(.20,Math.max(0,(1-f.progress)*f.duration)):0;
+        const tx=this.ball.x+(ahead ? ahead*(f.vx??(f.tx-f.x)/f.duration) : 0);
+        const tz=this.ball.z+(ahead ? ahead*(f.vz??(f.tz-f.z)/f.duration) : 0);
+        const across=(tx-p.x)*Math.cos(p.angle)-(tz-p.z)*Math.sin(p.angle);
+        const parrying=p.action==='parry';
+        const aiming=threat&&gap<7;
+        const side=aiming?clamp(across/.9,-1,1):parrying?p.saveSide*p.actionTime/p.actionDuration:0;
+        const low=aiming||p.action==='catch'?clamp((1.4-this.ball.y)/1.05,0,1):parrying?p.actionTime/p.actionDuration:0;
+        p.keeperLow=(p.keeperLow||0)+(low-(p.keeperLow||0))*(1-Math.exp(-dt*17));
+        p.keeperDive+=(side-p.keeperDive)*(1-Math.exp(-dt*14));
       }
       const immediate = (this.loose && p.intent?.role !== 'recover' && nearest[p.team].indexOf(p) < 2) || (this.flight?.target === p.id && p.intent?.role !== 'receive')
         || (p === this.owner && p.intent?.role !== 'carry');
@@ -609,12 +652,20 @@ export class Match {
       p.speed = actualSpeed;
       p.running = clamp(actualSpeed / 4, 0, 1);
       p.turnRate = 0;
-      if (actualSpeed > .2 && !p.contest) {
+      if (actualSpeed > .2 && !p.contest && this.control?.player!==p.id) {
         const angle = Math.atan2(p.vx, p.vz);
         const delta = Math.atan2(Math.sin(angle - p.angle), Math.cos(angle - p.angle));
         const turn = delta * (1 - Math.exp(-dt * 8));
         p.angle += turn;
         p.turnRate = turn / dt;
+      }
+      const incoming=this.flight;
+      const preparing=p.slot!==0 && incoming?.target===p.id && (1-incoming.progress)*incoming.duration<.32;
+      if(preparing || this.control?.player===p.id){
+        const facing=preparing ? receivingAngle(incoming.tx-incoming.x,incoming.tz-incoming.z,this.direction(p.team),.46)
+          : this.control.facing;
+        const turn=Math.atan2(Math.sin(facing-p.angle),Math.cos(facing-p.angle));
+        p.angle+=turn*(1-Math.exp(-dt*10));
       }
       if (p.slot === 0) {
         // Keep the chest facing play even while the keeper retreats or shuffles sideways.
@@ -623,7 +674,7 @@ export class Match {
         const delta = Math.atan2(Math.sin(facing - p.angle), Math.cos(facing - p.angle));
         p.angle += delta * (1 - Math.exp(-dt * 12));
       }
-      p.phase += dt * Math.PI * 2 * strideFrequency(actualSpeed);
+      p.phase += dt * Math.PI * 2 * strideFrequency(actualSpeed)*strideTempo(p);
       p.animTime = (p.animTime || 0) + dt;
     });
   }
@@ -695,6 +746,12 @@ export class Match {
       this.ball.x=p.x+Math.sin(p.angle)*.42;
       this.ball.z=p.z+Math.cos(p.angle)*.42;
       this.ball.y=.15+1.05*hold;
+      if(p.saveX!=null){
+        const gather=Math.min(1,(p.actionDuration-p.actionTime)/.26);
+        this.ball.x=p.saveX+(this.ball.x-p.saveX)*gather;
+        this.ball.y=p.saveY+(this.ball.y-p.saveY)*gather;
+        this.ball.z=p.saveZ+(this.ball.z-p.saveZ)*gather;
+      }
     }
     const defender = this.players.filter(q => q.team !== p.team && q.slot !== 0 && q.tackleCooldown <= 0 && distance(q, p) < 1.9)
       .sort((a, b) => distance(a, p) - distance(b, p))[0];
@@ -762,12 +819,12 @@ export class Match {
         } else this.startControl(p, 'chest');
       }
     } else {
-      this.startControl(p, this.ball.y > 1.1 ? 'chest' : 'cushion');
+      this.startControl(p, this.ball.y > 1.1 ? 'chest' : 'cushion', f);
     }
     return true;
   }
 
-  startControl(p, action) {
+  startControl(p, action, incoming = this.loose) {
     this.owner = p;
     this.lastTouch = p.team;
     this.lastTouchPlayer = p.id;
@@ -776,7 +833,14 @@ export class Match {
     const errorRate = (action === 'chest' ? .15 : action === 'cushion' ? .12 : .055) + (pressure ? .13 : 0);
     this.control = { player: p.id, elapsed: 0, duration: action === 'chest' ? .8 : .55, height: this.ball.y,
       x: this.ball.x, z: this.ball.z, miscontrol: this.random() < errorRate };
-    p.angle = Math.atan2(this.ball.x - p.x, this.ball.z - p.z);
+    const vx=incoming?.vx ?? (incoming ? (incoming.tx-incoming.x)/incoming.duration : 0);
+    const vz=incoming?.vz ?? (incoming ? (incoming.tz-incoming.z)/incoming.duration : 0);
+    const lateral=vx*Math.cos(p.angle)-vz*Math.sin(p.angle);
+    p.receiveSide=Math.abs(lateral)>1 ? -Math.sign(lateral) : p.profile?.foot==='左'?-1:1;
+    this.control.facing=Math.hypot(vx,vz)>1
+      ? receivingAngle(vx,vz,this.direction(p.team),pressure?.15:.46) : p.angle;
+    this.control.exitLead=pressure?.27:.48;
+    this.control.speed=Math.min(1,Math.hypot(vx,vz)/18);
     this.animateAction(p, action, this.control.duration);
     this.cooldown = .85;
     if (action === 'chest') this.onEvent('CHEST CONTROL', '胸で受けて足元に収める');
@@ -790,9 +854,10 @@ export class Match {
     const chest = p.action === 'chest';
     // First meet the incoming ball, then withdraw the contact surface to absorb its speed.
     const contact = chest ? .22 : .43;
-    const settle = .45;
-    const contactX = p.x + Math.sin(p.angle) * contact;
-    const contactZ = p.z + Math.cos(p.angle) * contact;
+    const settle = c.exitLead ?? .45;
+    const side=chest?0:(p.receiveSide||1)*.14;
+    const contactX = p.x + Math.sin(p.angle) * contact+Math.cos(p.angle)*side;
+    const contactZ = p.z + Math.cos(p.angle) * contact-Math.sin(p.angle)*side;
     if (t < .3) {
       const approach = 1 - Math.pow(1 - t / .3, 2);
       this.ball.x = c.x + (contactX - c.x) * approach;
@@ -800,9 +865,9 @@ export class Match {
       this.ball.y = c.height + ((chest ? 1.43 : c.height) - c.height) * approach;
     } else {
       const drop = (t - .3) / .7;
-      const reach = contact + (settle - contact) * drop;
-      this.ball.x = p.x + Math.sin(p.angle) * reach;
-      this.ball.z = p.z + Math.cos(p.angle) * reach;
+      const reach = contact + (settle-contact)*drop - (chest?0:.12)*(c.speed??0)*Math.sin(drop*Math.PI);
+      this.ball.x = p.x + Math.sin(p.angle)*reach+Math.cos(p.angle)*side*(1-drop);
+      this.ball.z = p.z + Math.cos(p.angle)*reach-Math.sin(p.angle)*side*(1-drop);
       this.ball.y = .15 + ((chest ? 1.43 : c.height) - .15) * (1 - drop * drop);
     }
     if (c.miscontrol && t > .6) {
@@ -816,8 +881,41 @@ export class Match {
     if (t === 1) this.control = null;
   }
 
+  tryGloveContact(f, start) {
+    const p=this.players[(1-f.from)*11], end=this.ball;
+    if(!p)return false;
+    const dx=end.x-start.x,dy=end.y-start.y,dz=end.z-start.z;
+    const projection=clamp(((p.x-start.x)*dx+(p.z-start.z)*dz)/(dx*dx+dz*dz||1),0,1);
+    if(Math.hypot(start.x+projection*dx-p.x,start.z+projection*dz-p.z)>1.8)return false;
+    const steps=Math.max(1,Math.ceil(Math.hypot(dx,dy,dz)/.065));
+    for(let i=1;i<=steps;i++){
+      const t=i/steps, b={x:start.x+t*dx,y:start.y+t*dy,z:start.z+t*dz};
+      if(Math.abs(b.x)>52.61 || Math.abs(b.z)>34)break;
+      const reach=gloveReach(p,b);
+      if(reach.closest>.585+.095)continue;
+      this.ball=b;
+      p.saveSide=reach.side;
+      p.saveX=b.x;p.saveY=b.y;p.saveZ=b.z;
+      this.flight=null;
+      this.lastTouch=p.team;this.lastTouchPlayer=p.id;
+      if(reach.both<.685 && b.y>.55){
+        this.owner=p;this.cooldown=1;
+        this.animateAction(p,'catch',.85);
+      }else{
+        const outward=reach.side*5;
+        this.releaseLoose(this.direction(p.team)*3.8+Math.cos(p.angle)*outward,
+          -Math.sin(p.angle)*outward,1.3,p.team);
+        this.animateAction(p,'parry',.56);
+      }
+      this.onEvent('SAVED',p.action==='catch'?'両手でキャッチ':'片手で外へ弾いた');
+      return true;
+    }
+    return false;
+  }
+
   updateFlight(dt) {
     const f = this.flight;
+    const previous={...this.ball};
     let t;
     if (f.header) {
       f.elapsed += dt;
@@ -834,10 +932,11 @@ export class Match {
       this.ball.z = f.z + (f.tz - f.z) * t;
       this.ball.y = (f.startY ?? .15) * (1 - t) + .15 * t + 4 * t * (1 - t) * (f.peak ?? (f.shot ? 1.3 : 1.5));
     }
+    if(f.shot && t>.10 && this.tryGloveContact(f,previous))return;
     if (this.checkBoundary()) return;
     if (this.tryAerialContact(f, t)) return;
-    const interceptor = this.players.find(p => p.team !== f.from
-      && distance(p, this.ball) < (p.slot === 0 ? (f.shot ? 1.15 : 2.2) : 1.1)
+    const interceptor = this.players.find(p => p.team !== f.from && !(p.slot===0 && f.shot)
+      && distance(p, this.ball) < (p.slot === 0 ? 2.2 : 1.1)
       && this.ball.y < (p.slot === 0 ? 2.4 : .85) && t > .12);
     if (interceptor) {
       this.owner = interceptor;
@@ -845,18 +944,17 @@ export class Match {
       this.lastTouchPlayer = interceptor.id;
       this.flight = null;
       this.cooldown = .55;
-      if(interceptor.slot===0){this.animateAction(interceptor,'catch',.85);interceptor.keeperReach=1;this.cooldown=1}
-      if (f.shot) this.onEvent(interceptor.slot === 0 ? 'SAVED' : 'BLOCKED',
-        interceptor.slot === 0 ? 'ゴールキーパーがセーブ' : 'ディフェンダーがブロック');
+      if(interceptor.slot===0){interceptor.saveX=this.ball.x;interceptor.saveY=this.ball.y;interceptor.saveZ=this.ball.z;this.animateAction(interceptor,'catch',.85);interceptor.keeperReach=1;this.cooldown=1}
+      if (f.shot) this.onEvent('BLOCKED','ディフェンダーがブロック');
       return;
     }
     if (t < 1) return;
     this.flight = null;
-    const receiver = this.players.filter(p => distance(p, this.ball) < 1.25)
+    const receiver = this.players.filter(p => !(f.shot && p.slot===0) && distance(p, this.ball) < 1.25)
       .sort((a, b) => distance(a, this.ball) - distance(b, this.ball))[0];
     if (receiver) {
       if (!f.shot && receiver.team === f.from) this.passes[f.from]++;
-      this.startControl(receiver, 'foot');
+      this.startControl(receiver, 'foot', f);
     } else {
       const duration = Math.max(f.duration, .1);
       this.releaseLoose(f.header ? f.vx * .55 : (f.tx - f.x) / duration * .32,

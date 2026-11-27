@@ -292,7 +292,7 @@ export function updateMovement(match, dt) {
       p.heading=(p.heading??0)+applied;
       if (dt > 0) p.turnRate = clamp(applied / dt, -4, 4);
     }
-    p.phase += p.speed * dt * 5.4;
+    p.phase += p.speed*dt*5.4*(1.99/p.height)*(1+clamp(p.accel,-5,6)*.018);
     p.actionTime=Math.max(0,p.actionTime-dt);
     if(p.actionTime===0)p.action=p===match.owner?'dribble':'idle';
   }

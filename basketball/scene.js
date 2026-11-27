@@ -1,3 +1,4 @@
+import {aimLimb} from '../src/limb-ik.js';
 import {createArenaCrowd} from './stands.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -90,8 +91,12 @@ export function createAthlete(player, team) {
   skin.flatShading = main.flatShading = false;
   const shoe = material(player.slot % 2 ? 0xf3f0e6 : 0x27394b);
   group.add(torso);
+  const legRatio=.97+.016*player.slot;
+  const hipRise=.93*(legRatio-1);
+  const frame=.94+player.slot*.032;
+  torso.scale.set(frame,1-hipRise,1+(frame-1)*.7);
   // A pelvis mass bridges waist and thighs at the hip line.
-  mesh(group, new THREE.SphereGeometry(.16, 10, 8), trim, 0, .985, 0).scale.set(1.15, .62, .85);
+  mesh(group, new THREE.SphereGeometry(.16, 10, 8), trim, 0, .985+hipRise, 0).scale.set(1.15, .62, .85);
   // Slim athletic torso: narrower waist, still wider left/right than
   // front/back, like a jersey on a lean frame. (Y values are hip-relative.)
   mesh(torso,new THREE.LatheGeometry([
@@ -122,7 +127,8 @@ export function createAthlete(player, team) {
   const legs = [], arms = [];
   for (const side of [-1, 1]) {
     const thigh = new THREE.Group();
-    thigh.position.set(side * .095,.99,0);
+    thigh.scale.set(.9+player.slot*.052,legRatio,1);
+    thigh.position.set(side * .095,.99+hipRise,0);
     group.add(thigh);
     mesh(thigh, new THREE.CylinderGeometry(.078,.064,.46,7), skin, 0,-.22,0);
     mesh(thigh, new THREE.CylinderGeometry(.092,.078,.21,7), trim, 0,-.055,0);
@@ -143,6 +149,7 @@ export function createAthlete(player, team) {
     mesh(ankle, new THREE.SphereGeometry(1,16,8), material(0xf3f0e6), 0,-.097,.07).scale.set(.069,.018,.136);
     legs.push({hip:thigh, knee, ankle});
     const arm = new THREE.Group();
+    arm.scale.setScalar(.97+.022*player.slot);
     arm.position.set(side * .222,.54,0);
     torso.add(arm);
     mesh(arm,new THREE.SphereGeometry(.081,14,10),skin,0,-.035,0).scale.set(1,1.38,.95);
@@ -176,44 +183,23 @@ export function createAthlete(player, team) {
       transparent:true,side:THREE.DoubleSide,depthWrite:false}),0,.36,-.17);
   number.rotation.y=Math.PI;
   group.scale.setScalar(player.height / 1.99);
-  return {group, legs, arms, torso, player};
+  return {group, legs, arms, torso, head, hipRise, playerId: player.id};
 }
 
 
 // Point fingertips at the ball with a two-link IK solve in torso space.
 // Arm parts remain attached to the skeleton and follow its turning.
-const DOWN=new THREE.Vector3(0,-1,0);
-const IK_UPPER=.245, IK_LOWER=.425;
-function aimPalm(model,armIndex,ball,amount) {
-  if(amount<=0)return;
-  const part=model.arms[armIndex];
-  model.group.updateMatrixWorld(true);
-  const target=model.torso.worldToLocal(new THREE.Vector3(ball.x,ball.y+BALL_RADIUS,ball.z));
-  const start=part.shoulder.position.clone();
-  const direction=target.sub(start);
-  const originalDistance=direction.length();
-  if(originalDistance<.001)return;
-  const distance=THREE.MathUtils.clamp(originalDistance,
-    Math.abs(IK_UPPER-IK_LOWER)+.003,IK_UPPER+IK_LOWER-.003);
-  direction.normalize();
-  const reach=(IK_UPPER**2-IK_LOWER**2+distance**2)/(2*distance);
-  const elbowHeight=Math.sqrt(Math.max(0,IK_UPPER**2-reach**2));
-  // Bending the elbow downward/backward keeps the dribbling elbow below
-  // the shoulder instead of forming an outward-pointing chicken wing.
-  const sideways=new THREE.Vector3(armIndex?.12:-.12,-1,-.42);
-  sideways.addScaledVector(direction,-sideways.dot(direction));
-  if(sideways.lengthSq()<.001)sideways.set(0,0,1);
-  sideways.normalize();
-  const elbowPoint=start.clone().addScaledVector(direction,reach)
-    .addScaledVector(sideways,elbowHeight);
-  const reachEnd=start.clone().addScaledVector(direction,distance);
-  const upperDirection=elbowPoint.clone().sub(start).normalize();
-  const lowerDirection=reachEnd.sub(elbowPoint).normalize();
-  const upperQuat=new THREE.Quaternion().setFromUnitVectors(DOWN,upperDirection);
-  const lowerGlobalQuat=new THREE.Quaternion().setFromUnitVectors(DOWN,lowerDirection);
-  const lowerRelativeQuat=upperQuat.clone().invert().multiply(lowerGlobalQuat);
-  part.shoulder.quaternion.slerp(upperQuat,amount);
-  part.elbow.quaternion.slerp(lowerRelativeQuat,amount);
+const palmTarget=new THREE.Vector3(), elbowBend=new THREE.Vector3();
+function aimPalm(model,armIndex,ball,amount,cradle=false) {
+  const part=model.arms[armIndex], side=armIndex?1:-1;
+  palmTarget.set(ball.x,ball.y+(cradle?.025:BALL_RADIUS),ball.z);
+  if(cradle){
+    const heading=model.group.rotation.y;
+    palmTarget.x+=Math.cos(heading)*side*.10;
+    palmTarget.z-=Math.sin(heading)*side*.10;
+  }
+  elbowBend.set(side*.12,-1,-.42);
+  aimLimb(part.shoulder,part.elbow,.425,palmTarget,elbowBend,amount);
   part.wrist.rotation.x*=1-amount;
 }
 function contactAmount(ball) {
@@ -395,7 +381,7 @@ export class ArenaScene {
   }
   update(dt, gameDt = dt) {
     for (const model of this.models) {
-      const p = model.player;
+      const p = this.match.players[model.playerId];
       const motion=defenseAnimationState(this.match,p,guardPose(this.match,p));
       const guard=motion.guard;
       const sprinting=!!guard;
@@ -418,19 +404,32 @@ export class ArenaScene {
         const turn=Math.atan2(Math.sin(facing-model.group.rotation.y),Math.cos(facing-model.group.rotation.y));
         model.group.rotation.y+=turn*(1-Math.exp(-dt*(guard?5.5:6)));
       }
+      const dx=this.match.ball.x-p.x, dz=this.match.ball.z-p.z;
+      const gap=Math.hypot(dx,dz);
+      const bearing=Math.atan2(dx,dz)-model.group.rotation.y;
+      const gaze=1-Math.exp(-dt*9);
+      model.head.rotation.y+=(.70*Math.sin(bearing)*Math.min(gap,1)-model.head.rotation.y)*gaze;
+      const pitch=-.65*Math.atan2(this.match.ball.y-p.height,Math.max(gap,1.7));
+      model.head.rotation.x+=(pitch-model.head.rotation.x)*gaze;
+      const incoming=this.match.flight;
+      const receiving=incoming?.kind==='pass' && incoming.to===p.id;
+      const untilCatch=receiving ? incoming.duration*(1-incoming.t)-PASS_CATCH : Infinity;
+      const gather=receiving ? ease(1-Math.abs(untilCatch)/.24) : 0;
       const running=Math.min(1,p.speed/3.5);
       const wave=Math.sin(p.phase)*.67*running;
       const crouch=guard?.crouch ?? 0;
       // Hip, knee and ankle are separate joints. Each leg alternates between
       // planted support and bent-knee recovery, with a small guarded shuffle.
+      const dip=gather*.085;
+      model.group.position.y-=dip;
       const legBlend=1-Math.exp(-Math.min(dt,.08)*12);
       for(let i=0;i<2;i++){
         const side=i?1:-1;
-        const pose=runningLegPose(p.phase,p.speed,sprinting,side,guard?.footSpread ?? 0);
+        const pose=runningLegPose(p.phase,p.speed,sprinting,side,guard?.footSpread ?? 0,p.accel,p.turnRate);
         const leg=model.legs[i];
         const inAir=jumping>.03;
-        const hipTarget=pose.hipX+(inAir ? (i===0?.20:-.16):0);
-        const kneeTarget=pose.kneeX+(inAir?.36:0);
+        const hipTarget=pose.hipX+(inAir ? (i===0?.20:-.16):0)-gather*.17;
+        const kneeTarget=pose.kneeX+(inAir?.36:0)+gather*.31;
         leg.hip.rotation.x += (hipTarget-leg.hip.rotation.x)*legBlend;
         leg.hip.rotation.z += (pose.hipZ-leg.hip.rotation.z)*legBlend;
         leg.knee.rotation.x += (kneeTarget-leg.knee.rotation.x)*legBlend;
@@ -443,7 +442,7 @@ export class ArenaScene {
       const hop=isShooting && isFreeThrow ? .025*
         Math.sin(Math.PI*Math.max(0,Math.min(1,shotProgress))) : 0;
       const naturalBounce=.025*Math.abs(Math.sin(p.phase))*running;
-      model.torso.position.y=.99+(guard?-crouch*.5:naturalBounce*.30)+hop;
+      model.torso.position.y=.99+(guard?-crouch*.5:naturalBounce*.30)+hop+model.hipRise;
       model.torso.rotation.x=guard?.10:body.lean;
       model.torso.rotation.z=guard?0:-body.bank;
       const blend=1-Math.exp(-dt*11);
@@ -485,7 +484,7 @@ export class ArenaScene {
       if(active) {
         aimPalm(model,control.hand===-1?0:1,this.match.ball,contactAmount(this.match.ball));
       } else if(securing) {
-        for(let i=0;i<2;i++)aimPalm(model,i,this.match.ball,.92);
+        for(let i=0;i<2;i++)aimPalm(model,i,this.match.ball,.92,true);
       } else if(flight?.from===p.id && flight.stage==='gather') {
         const gather=flight.kind==='pass'?PASS_GATHER:SHOT_GATHER;
         const progress=ease((flight.t*flight.duration)/gather);
@@ -495,7 +494,11 @@ export class ArenaScene {
         if(flight.stage==='catch'||remaining<PASS_CATCH+.22) {
           const approach=Math.max(0,remaining-PASS_CATCH);
           const reach=flight.stage==='catch'?1:ease(1-approach/.22);
-          for(let i=0;i<2;i++)aimPalm(model,i,this.match.ball,reach);
+          for(let i=0;i<2;i++){
+            const near=(i===0?-1:1)===flight.hand;
+            const trailing=p.speed>1.25 && !near ? ease(1-Math.max(0,remaining-.07)/.21) : 1;
+            aimPalm(model,i,this.match.ball,reach*trailing,true);
+          }
         }
       } else if(this.match.freeThrows?.shooter===p.id && this.match.freeThrows.state==='setup') {
         for(let i=0;i<2;i++)aimPalm(model,i,this.match.ball,.93);

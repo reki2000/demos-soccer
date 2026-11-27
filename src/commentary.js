@@ -64,6 +64,7 @@ export class Commentary {
     return {
       player: surname(player, `${(player?.slot ?? 0) + 1}番の選手`),
       receiver: surname(receiver, '前方の味方'),
+      parried: player?.action==='parry' || (match.loose && match.players[match.lastTouchPlayer]?.action==='parry'),
       minute: Math.floor(match.time / 60),
       margin: match.score[team] - match.score[1 - team],
       shots: match.shots[team],
@@ -135,7 +136,10 @@ export class Commentary {
   showAnalysis(slot) {
     let lines = ANALYSIS_BANK[slot.category];
     const {minute, margin} = slot.context;
-    if (slot.category === 'goalLead' && minute >= 80) {
+    if(slot.category==='save' && slot.context.parried){
+      lines=['{player}は片手で外へ逃がしました。次はこぼれ球への反応です。',
+        '捕りにいかずにコースを変えました。守備陣はもう一度ボールの位置を確認したいですね。'];
+    } else if (slot.category === 'goalLead' && minute >= 80) {
       lines = ['{minute}分で均衡が破れました。{opponent}は同点を狙う人数を、どこで前に出すかです。',
         '残り時間の短い中で{player}の勝ち越し弾。{team}は奪った次の一本を大事にしたいですね。'];
     } else if (slot.category === 'goalLead' && slot.context.score !== '0対0') {

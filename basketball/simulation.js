@@ -5,6 +5,14 @@ import {startJump,advanceJumps,jumpHeight} from './athletic-motion.js';
 import {dribblePoint,releasePoint,receivePoint,arcPoint,mixPoint,blend,controllingHand,
   DRIBBLE_PERIOD,PASS_GATHER,PASS_CATCH,SHOT_GATHER,passFlightDuration} from './ball-motion.js';
 export { COURT } from './court.js';
+// Use the same sample to decide the result and where on the rim the ball hits.
+function shotTarget(origin, hoop, sample, probability) {
+  if (sample < probability) return {x:hoop.x,y:COURT.rimHeight,z:0};
+  const approach = Math.atan2(origin.z, origin.x-hoop.x);
+  const angle = approach + ((sample-probability)/(1-probability)-.5)*Math.PI*1.5;
+  return {x:hoop.x+.234*Math.cos(angle),y:COURT.rimHeight+.119,z:.234*Math.sin(angle)};
+}
+
 export const SQUADS = [
   { id: 'tokyo', name: 'TOKYO BAY HAWKS', code: 'TKY', color: 0x85d6ed, trim: 0x172c43, names: ['Shota Takamura', 'Ryosuke Fujii', 'Kenta Mizuno', 'Yuki Morishita', 'Daichi Nagasawa'],
     namesJa: ['高村 翔太', '藤井 涼介', '水野 健太', '森下 優樹', '長澤 大地'] },
@@ -214,7 +222,8 @@ export class BasketballMatch {
     from.heading=Math.atan2(recipient.x-from.x,recipient.z-from.z);
     from.throwHeading=from.heading;
     from.throwTime=duration;
-    const hand=this.ballControl?.hand??1;
+    const across=(from.x-recipient.x)*Math.cos(recipient.heading)-(from.z-recipient.z)*Math.sin(recipient.heading);
+    const hand=Math.sign(across)||1;
     this.flight={kind:'pass',team:from.team,from:from.id,to:recipient.id,
       hand,start:{...this.ball},release:releasePoint(from,'pass'),
       end:receivePoint(recipient,hand),t:0,duration,stage:'gather'};
@@ -243,10 +252,12 @@ export class BasketballMatch {
     const defender = this.nearestDefender(from);
     const shootingFoul = defenderDistance < 1.65 && this.random() < .23
       && this.callFoul(defender.id, from.id, true, points);
-    const duration=SHOT_GATHER+(isDunk?.27:(.85+distance/12));
-    this.flight={kind:'shot',dunk:isDunk,team:from.team,from:from.id,points,probability,shootingFoul,
+    const sample=this.random();
+    const arcHeight=isDunk ? 0 : clamp(.82+distance*.14,.9,2.9);
+    const duration=SHOT_GATHER+(isDunk ? .27 : Math.sqrt(8*arcHeight/9.8));
+    this.flight={kind:'shot',dunk:isDunk,team:from.team,from:from.id,points,made:sample<probability,arcHeight,shootingFoul,
       start:{...this.ball},release:releasePoint(from,'shot'),
-      end:{x:hoop.x,y:COURT.rimHeight,z:0},t:0,duration,stage:'gather'};
+      end:shotTarget(from,hoop,sample,probability),t:0,duration,stage:'gather'};
     from.action='shoot';from.actionTime=duration;
     startJump(from,isDunk?'dunk':'shot',isDunk?1.08:.50,.72);
     const defenders=this.players.filter(p=>p.team!==from.team)
@@ -289,7 +300,7 @@ export class BasketballMatch {
       } else if(elapsed<gather+air) {
         f.stage='air';
         if(f.kind==='pass')f.end=receivePoint(this.players[f.to],f.hand);
-        this.ball=arcPoint(f.release,f.end,(elapsed-gather)/air,f.kind==='shot'?(f.dunk?0:2.65):.74);
+        this.ball=arcPoint(f.release,f.end,(elapsed-gather)/air,f.kind==='shot'?f.arcHeight:.74);
       } else if(f.kind==='pass') {
         f.stage='catch';
         f.end=receivePoint(this.players[f.to],f.hand);
@@ -316,7 +327,7 @@ export class BasketballMatch {
         this.ball=dribblePoint(recipient,f.hand,0);
       }
     } else if (f.kind === 'shot') {
-      if (this.random() < f.probability) {
+      if (f.made) {
         this.score[f.team] += f.points;
         this.makes[f.team]++;
         if (f.points === 3) this.threes[f.team]++;
@@ -393,12 +404,13 @@ export class BasketballMatch {
       p.speed = p.vx = p.vz = 0;
       p.action = 'idle';
       p.actionTime = 0;
-      if (p.id === shooterId) {p.x = sign * (COURT.basketX - 4.55); p.z = 0;}
+      if (p.id === shooterId) {p.x = sign * 8.0; p.z = 0;}
       else {
         const slot = p.slot, offset = p.team === shooter.team ? 1 : 0;
         p.x = sign * (COURT.basketX - 1.9 - .9 * (slot % 3));
         p.z = (slot % 2 ? -1 : 1) * (2.4 + offset + Math.floor(slot / 2) * .8);
       }
+      p.heading = Math.atan2(sign*COURT.basketX-p.x,-p.z);
     }
     this.ball={...incoming};
     this.ballControl={mode:'freeThrow',from:shooterId};
@@ -416,11 +428,12 @@ export class BasketballMatch {
       if (ft.timer <= 0) {
         ft.state = 'flight';
         ft.timer = FT_FLIGHT_SECONDS;
-        ft.willMake = this.random() < .76;
+        const sample = this.random();
+        ft.willMake = sample < .76;
         shooter.action = 'shoot';
         shooter.actionTime = FT_FLIGHT_SECONDS;
         ft.start = {...this.ball};
-        ft.end = {x: direction * COURT.basketX, y: COURT.rimHeight, z: 0};
+        ft.end = shotTarget(shooter,{x:direction*COURT.basketX},sample,.76);
         this.ftAttempts[ft.team]++;
         this.emit('freeThrowAttempt', {team: ft.team, player: ft.shooter, attempt: ft.completed + 1, total: ft.total});
       }
@@ -428,11 +441,7 @@ export class BasketballMatch {
     }
     const t = clamp(1 - ft.timer / FT_FLIGHT_SECONDS, 0, 1);
     shooter.actionTime = Math.max(0, ft.timer);
-    this.ball = {
-      x: ft.start.x + (ft.end.x - ft.start.x) * t,
-      y: ft.start.y + (ft.end.y - ft.start.y) * t + Math.sin(Math.PI * t) * 1.4,
-      z: ft.start.z + (ft.end.z - ft.start.z) * t,
-    };
+    this.ball = arcPoint(ft.start,ft.end,t,1.4);
     if (ft.timer > 0) return;
     shooter.action = 'idle';
     shooter.actionTime = 0;
@@ -488,6 +497,7 @@ export class BasketballMatch {
     this.emit('violation',{team:loser});
   }
   endQuarter() {
+    this.scoredInbound = null;
     this.clock = 0;
     this.flight = null;
     this.owner = null;
@@ -510,6 +520,7 @@ export class BasketballMatch {
     advanceJumps(this.players,dt);
     if (this.freeThrows) {
       this.updateFreeThrows(dt);
+      if(this.clock===0 && !this.freeThrows)this.endQuarter();
       return;
     }
     if(this.pause>0) {
@@ -526,12 +537,24 @@ export class BasketballMatch {
       }
       return;
     }
+    // A horn during the gather cancels the attempt; after release the ball
+    // remains live until it reaches the rim. Compare the within-tick times.
+    const shot=this.flight?.kind==='shot' ? this.flight : null;
+    const releaseIn=shot ? Math.max(0,SHOT_GATHER-shot.t*shot.duration) : Infinity;
+    const beforeHorn=shot && (shot.stage==='air' || releaseIn<Math.min(this.clock,this.shotClock));
     this.clock = Math.max(0, this.clock - dt);
     this.shotClock = Math.max(0, this.shotClock - dt);
     this.possessionTime[this.possession] += dt;
     this.possessionAge += dt;
-    if (this.clock <= 0) { this.endQuarter(); return; }
-    if (this.shotClock <= 0) { this.violation(); return; }
+    if (this.clock <= 0) {
+      if(beforeHorn){
+        this.updateFlight(dt);
+        if(this.flight===shot || this.freeThrows)return;
+      }
+      this.endQuarter();
+      return;
+    }
+    if (this.shotClock <= 0 && !beforeHorn && this.flight?.kind!=='rebound') { this.violation(); return; }
     this.movePlayers(dt);
     if (this.flight) { this.updateFlight(dt); return; }
     this.syncHeldBall(dt);

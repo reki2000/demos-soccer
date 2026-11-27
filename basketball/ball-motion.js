@@ -34,7 +34,9 @@ export function releasePoint(player,kind) {
     : localToWorld(player,0,1.45,.43);
 }
 export function receivePoint(player,hand) {
-  return localToWorld(player,hand*.20,1.28,.39);
+  const moving=clamp((player.speed??0)/3,0,1);
+  const scale=(player.height??1.99)/1.99;
+  return localToWorld(player,hand*(.18+.12*moving)*scale,1.28*scale,(.34+.11*moving)*scale);
 }
 export function arcPoint(from,to,t,height) {
   const p=mixPoint(from,to,t);

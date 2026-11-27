@@ -1,3 +1,4 @@
+import {setupViewControls} from './view-controls.js';
 import {Highlights} from './highlights.js';
 import {Commentary} from './commentary.js';
 import {assignProfiles,playerPosition} from './roster.js';
@@ -6,6 +7,7 @@ import {StadiumScene} from './scene.js';
 import {ArenaAudio} from '../basketball/audio.js';
 const $=id=>document.getElementById(id);
 const teams=[countries[0],countries[1]];let activeTeam=0,playing=true,speed=1,toastTimer;
+setupViewControls();
 const arenaAudio=new ArenaAudio();
 arenaAudio.speechRate=2.14; // 1.5x the previous 1.43 Japanese play-by-play rate.
 arenaAudio.voicePreference='male'; // Prefer installed Japanese male voices.
