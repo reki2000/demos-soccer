@@ -1,12 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {LEG_LENGTHS, solveLeg, runningLegPose} from '../basketball/leg-gait.js';
+import {guardShuffle} from '../basketball/defensive-motion.js';
 
 function anklePosition(pose) {
   const a = LEG_LENGTHS.upper, b = LEG_LENGTHS.lower;
+  const y = -a * Math.cos(pose.hipX) - b * Math.cos(pose.hipX + pose.kneeX);
+  const roll = pose.hipZ ?? 0;
   return {
     z: -a * Math.sin(pose.hipX) - b * Math.sin(pose.hipX + pose.kneeX),
-    y: -a * Math.cos(pose.hipX) - b * Math.cos(pose.hipX + pose.kneeX),
+    x: -y * Math.sin(roll),
+    y: y * Math.cos(roll),
   };
 }
 
@@ -65,14 +69,58 @@ test('idle returns small knee bend without running or sliding', () => {
   }
 });
 
-test('guarded shuffle keeps knees bent, feet spread and foot lift modest', () => {
+test('stationary guard keeps knees bent and feet spread', () => {
   for(const side of [-1,1]){
-    const pose=runningLegPose(Math.PI*.8,2,true,side,.16);
+    const still=guardShuffle({vx:0,vz:0},0);
+    const pose=runningLegPose(Math.PI*.8,0,true,side,.16,0,0,still);
     assert.equal(Math.sign(pose.hipZ),side);
     assert.ok(Math.abs(pose.hipZ - side*.16)<1e-9);
     assert.ok(pose.kneeX>.25);
-    assert.ok(pose.lift<.25);
+    assert.equal(pose.lift,0);
   }
+});
+
+test('lateral guard steps mirror the lead, close-step and planted sweep in either heading', () => {
+  const heading = Math.PI/3;
+  const poses = [];
+  for (const direction of [-1,1]) {
+    const shuffle = guardShuffle({vx:direction*1.3*Math.cos(heading),vz:-direction*1.3*Math.sin(heading)},heading);
+    assert.equal(shuffle.amount,1);
+    const groundOffset = -.081;
+    const phaseAt = cycle => cycle*Math.PI*2/1.5;
+    const leg = (cycle,side) => runningLegPose(phaseAt(cycle),1.3,true,side,.16,0,0,{...shuffle,groundOffset});
+    const lead = leg(.32,direction), support = leg(.32,-direction);
+    assert.ok(lead.lift>.17);
+    assert.ok(!lead.stance && support.stance);
+    assert.equal(support.lift,0);
+    const close = leg(.82,-direction);
+    assert.ok(close.lift>.08 && close.lift<lead.lift);
+    assert.ok(leg(.82,direction).stance);
+    const before = anklePosition(leg(.16,-direction)), after = anklePosition(support);
+    const bodyTravel = direction * phaseAt(.32-.16) / 5.4;
+    assert.ok(Math.abs(after.x-before.x+bodyTravel)<.01);
+    assert.ok(Math.abs(LEG_LENGTHS.hipHeight + groundOffset + after.y - .112)<.001);
+    assert.ok(Math.abs(support.hipZ + support.ankleZ)<1e-10);
+    poses.push({lead:anklePosition(lead),support:after});
+  }
+  for(const role of ['lead','support']){
+    assert.ok(Math.abs(poses[0][role].x+poses[1][role].x)<1e-10);
+    assert.ok(Math.abs(poses[0][role].y-poses[1][role].y)<1e-10);
+  }
+});
+
+test('forward guard keeps its regular gait and diagonal motion blends in lateral travel', () => {
+  const phase = Math.PI*.64;
+  const forward = guardShuffle({vx:0,vz:1.3},0);
+  const diagonal = guardShuffle({vx:.9,vz:.9},0);
+  const base = runningLegPose(phase,1.3,true,1,.16);
+  assert.deepEqual(runningLegPose(phase,1.3,true,1,.16,0,0,forward),base);
+  assert.ok(diagonal.amount>0 && diagonal.amount<1);
+  const mixed = runningLegPose(phase,1.3,true,1,.16,0,0,diagonal);
+  assert.ok(Math.abs(mixed.targetZ-.074)<Math.abs(base.targetZ-.074));
+  assert.ok(Math.abs(mixed.hipZ-base.hipZ)>.05);
+  const stopped = guardShuffle({vx:-.08,vz:0},0);
+  assert.equal(stopped.amount,0);
 });
 
 test('the gait is continuous across support/swing transition and wraps', () => {
