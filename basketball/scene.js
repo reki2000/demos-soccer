@@ -5,7 +5,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import {createBasketball, createHoopNet} from './equipment.js';
 import { COURT } from './simulation.js';
 import { guardPose } from './guard-pose.js';
-import {defenseAnimationState} from './defensive-motion.js';
+import {defenseAnimationState, guardShuffle} from './defensive-motion.js';
 import {shadowAppearance} from './shadows.js';
 import { runningLegPose } from './leg-gait.js';
 import {jumpHeight,runningBodyPose} from './athletic-motion.js';
@@ -129,6 +129,7 @@ export function createAthlete(player, team) {
     const thigh = new THREE.Group();
     thigh.scale.set(.9+player.slot*.052,legRatio,1);
     thigh.position.set(side * .095,.99+hipRise,0);
+    thigh.rotation.order = 'ZXY';
     group.add(thigh);
     mesh(thigh, new THREE.CylinderGeometry(.078,.064,.46,7), skin, 0,-.22,0);
     mesh(thigh, new THREE.CylinderGeometry(.092,.078,.21,7), trim, 0,-.055,0);
@@ -384,15 +385,8 @@ export class ArenaScene {
       const p = this.match.players[model.playerId];
       const motion=defenseAnimationState(this.match,p,guardPose(this.match,p));
       const guard=motion.guard;
-      const sprinting=!!guard;
-      const body=runningBodyPose(p.phase,p.speed,sprinting,p.turnRate||0,p.accel||0);
+      const body=runningBodyPose(p.phase,p.speed,!!guard,p.turnRate||0,p.accel||0);
       const jumping=jumpHeight(p);
-      model.group.position.set(p.x,body.bounce+jumping,p.z);
-      const floorShadow=this.shadows[p.id];
-      const shadow=shadowAppearance(body.bounce+jumping,.84);
-      floorShadow.position.set(p.x,-.038,p.z);
-      floorShadow.scale.set(shadow.radius,shadow.radius,1);
-      floorShadow.material.opacity=shadow.opacity;
       // Defense faces the assigned player/ball while shuffling sideways.
       // Offense continues to face its movement direction.
       if((!guard && p.team===this.match.possession && Number.isFinite(p.heading)) || motion.runFacing) {
@@ -418,22 +412,31 @@ export class ArenaScene {
       const running=Math.min(1,p.speed/3.5);
       const wave=Math.sin(p.phase)*.67*running;
       const crouch=guard?.crouch ?? 0;
-      // Hip, knee and ankle are separate joints. Each leg alternates between
-      // planted support and bent-knee recovery, with a small guarded shuffle.
+      const shuffle=guard ? guardShuffle(p,model.group.rotation.y) : null;
+      if(shuffle)shuffle.amount*=1-ease(jumping/.08);
+      const shuffleWeight=shuffle?.amount ?? 0;
       const dip=gather*.085;
-      model.group.position.y-=dip;
-      const legBlend=1-Math.exp(-Math.min(dt,.08)*12);
+      const groundOffset=body.bounce*(1-shuffleWeight)-.081*shuffleWeight-dip;
+      if(shuffle)shuffle.groundOffset=groundOffset/model.group.scale.y;
+      model.group.position.set(p.x,groundOffset+jumping,p.z);
+      const floorShadow=this.shadows[p.id];
+      const shadow=shadowAppearance(groundOffset+jumping,.84);
+      floorShadow.position.set(p.x,-.038,p.z);
+      floorShadow.scale.set(shadow.radius,shadow.radius,1);
+      floorShadow.material.opacity=shadow.opacity;
+      const legBlend=1-Math.exp(-Math.min(dt,.08)*(12+10*shuffleWeight));
+      const inAir=jumping>.03;
       for(let i=0;i<2;i++){
         const side=i?1:-1;
-        const pose=runningLegPose(p.phase,p.speed,sprinting,side,guard?.footSpread ?? 0,p.accel,p.turnRate);
+        const pose=runningLegPose(p.phase,p.speed,!!guard,side,guard?.footSpread ?? 0,p.accel,p.turnRate,shuffle);
         const leg=model.legs[i];
-        const inAir=jumping>.03;
         const hipTarget=pose.hipX+(inAir ? (i===0?.20:-.16):0)-gather*.17;
         const kneeTarget=pose.kneeX+(inAir?.36:0)+gather*.31;
         leg.hip.rotation.x += (hipTarget-leg.hip.rotation.x)*legBlend;
         leg.hip.rotation.z += (pose.hipZ-leg.hip.rotation.z)*legBlend;
         leg.knee.rotation.x += (kneeTarget-leg.knee.rotation.x)*legBlend;
         leg.ankle.rotation.x += (pose.ankleX-leg.ankle.rotation.x)*legBlend;
+        leg.ankle.rotation.z += ((pose.ankleZ ?? 0)-leg.ankle.rotation.z)*legBlend;
       }
       const ft=this.match.freeThrows;
       const isFreeThrow=ft?.shooter===p.id && ft.state==='flight';
@@ -442,9 +445,9 @@ export class ArenaScene {
       const hop=isShooting && isFreeThrow ? .025*
         Math.sin(Math.PI*Math.max(0,Math.min(1,shotProgress))) : 0;
       const naturalBounce=.025*Math.abs(Math.sin(p.phase))*running;
-      model.torso.position.y=.99+(guard?-crouch*.5:naturalBounce*.30)+hop+model.hipRise;
+      model.torso.position.y=.99+(guard?-crouch*.5*(1-shuffleWeight*.55):naturalBounce*.30)+hop+model.hipRise;
       model.torso.rotation.x=guard?.10:body.lean;
-      model.torso.rotation.z=guard?0:-body.bank;
+      model.torso.rotation.z=shuffle?-.10*Math.sign(shuffle.lateral)*shuffleWeight:-body.bank;
       const blend=1-Math.exp(-dt*11);
       for(let i=0;i<2;i++){
         const side=i?1:-1;

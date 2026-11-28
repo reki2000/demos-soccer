@@ -22,6 +22,20 @@ test('defenders run with free arms; nearby contests still raise hands',()=>{
   assert.equal(defenseAnimationState(match,guard,{role:'contest'}).guard.role,'contest');
 });
 
+test('a defender stays squared up for sideways slides and turns to chase forward',()=>{
+  const match=new BasketballMatch(()=>{},()=>.5);
+  const player=match.players[5];
+  const pose={role:'contain',faceAngle:Math.PI/2};
+  for(const direction of [-1,1]){
+    Object.assign(player,{vx:0,vz:direction*2.1,speed:2.1});
+    assert.equal(defenseAnimationState(match,player,pose).guard,pose);
+  }
+  player.jump={type:'rebound',elapsed:.2,duration:.6};
+  assert.equal(defenseAnimationState(match,player,pose).guard,null);
+  Object.assign(player,{vx:2.1,vz:0,jump:null});
+  assert.equal(defenseAnimationState(match,player,pose).runFacing,true);
+});
+
 test('passes and shots face their receiver or rim and stay oriented during gather',()=>{
   const match=new BasketballMatch(()=>{},()=>.5);
   const sender=match.owner;

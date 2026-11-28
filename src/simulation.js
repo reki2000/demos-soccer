@@ -155,7 +155,10 @@ export class Match {
     this.lastTouch = p.team;
     this.lastTouchPlayer = p.id;
     this.loose = null;
-    if (!header && p.action !== 'throw') this.animateAction(p, 'kick', .35);
+    if (!header && p.action !== 'throw') {
+      this.animateAction(p, 'kick', .35);
+      p.kickRelease = { x: p.x, z: p.z, angle: p.angle, ballX: this.ball.x, ballZ: this.ball.z };
+    }
     const length = Math.hypot(tx - this.ball.x, tz - this.ball.z);
     const peak = header ? .15 : shot ? .7 + length * .035 : length > 20 ? Math.min(9, 1.8 + (length - 20) * .25) : .3 + length * .025;
     this.flight = {

@@ -1,4 +1,4 @@
-const PLAYER_FIELDS = ['id','team','slot','x','z','vx','vz','speed','angle','phase','running','jump','contest','action','actionTime','actionDuration','fallAmount','fallRecover','strideDirection','turnRate','accel','keeperReach','keeperDive','keeperLow','saveSide','saveX','saveY','saveZ','receiveSide'];
+const PLAYER_FIELDS = ['id','team','slot','x','z','vx','vz','speed','angle','phase','running','jump','contest','action','actionTime','actionDuration','fallAmount','fallRecover','strideDirection','turnRate','accel','keeperReach','keeperDive','keeperLow','saveSide','saveX','saveY','saveZ','receiveSide','kickRelease'];
 function frameOf(match, at) {
   return { at, time: match.time, half: match.half, score: [...match.score], ball: {...match.ball},
     owner: match.owner?.id ?? null, flight: match.flight ? {from:match.flight.from,passer:match.flight.passer,target:match.flight.target,duration:match.flight.duration,progress:match.flight.progress} : null,
